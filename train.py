@@ -15,9 +15,6 @@ from utils.engine import train_one_epoch, evaluate
 
 import piggyback_detection
 
-# test
-from PIL import Image
-
 def get_dataset(name, image_set, transform, data_path, num_classes):
     paths = {
         "coco": (data_path, get_coco, None), # 修改自定义数据集类别数量：num_classes+1(背景)
@@ -29,8 +26,11 @@ def get_dataset(name, image_set, transform, data_path, num_classes):
     return dataset
 
 def get_detection_model(args):
+
     model = piggyback_detection.fasterrcnn_resnet50_fpn(
-        num_classes=args.num_classes, pretrained=args.pretrained, base_model=args.base_model)
+        num_classes=args.num_classes, pretrained=args.pretrained, base_model=args.base_model,
+        mask_init='1s', mask_scale=6e-3
+        )
 
     return model
     
@@ -68,7 +68,7 @@ def get_args():
     parser.add_argument('--model', default='fasterrcnn_resnet50_fpn', 
                         help='backbone model of fasterrcnn, options are: \
                         resnet50,vgg16,mobilenet_v2,squeezenet1_0,alexnet,mnasnet0_5')
-    parser.add_argument('--device', default='cpu', help='device')
+    parser.add_argument('--device', default='cuda', help='device')
     parser.add_argument('-b', '--batch-size', default=1, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')
     parser.add_argument('--epochs', default=18, type=int, metavar='N',
@@ -82,7 +82,7 @@ def get_args():
     parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
                         metavar='W', help='weight decay (default: 1e-4)', dest='weight_decay')
     parser.add_argument('--lr-step-size', default=8, type=int, help='decrease lr every step-size epochs')
-    parser.add_argument('--lr-steps', default=[13, 16], nargs='+', type=int, help='decrease lr every step-size epochs,[16, 22]')
+    parser.add_argument('--lr-steps', default=[13, 16], nargs='+', type=str, help='decrease lr every step-size epochs,[16, 22]')
     parser.add_argument('--lr-gamma', default=0.1, type=float, help='decrease lr by a factor of lr-gamma')
     parser.add_argument('--print-freq', default=50, type=int, help='print frequency')
     parser.add_argument('--output-dir', default='checkpoints', help='path where to save')
@@ -93,7 +93,7 @@ def get_args():
     parser.add_argument("--pretrained", default=False, action="store_true")
 
     #piggyback
-    parser.add_argument("--base-model", default="../[0,39].pth", type=str)
+    parser.add_argument("--base-model", default="model/fasterrcnn_resnet50_fpn_pretrained.pth", type=str)
 
     # distributed training parameters
     parser.add_argument('--world-size', default=1, type=int, help='number of distributed processes')
@@ -119,20 +119,13 @@ def main(args):
     data_loader = torch.utils.data.DataLoader(dataset, 
         batch_sampler=train_batch_sampler, num_workers=args.workers,
         collate_fn=utils.collate_fn)
-
     data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1,
         sampler=test_sampler, num_workers=args.workers,
         collate_fn=utils.collate_fn)
 
-
     print("Creating model")
     model = get_detection_model(args)
     model.to(device)
-
-    for name, param in model.named_parameters():
-        if "mask" in name: 
-            print(name, param.view(-1))
-
     model_without_ddp = model
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=True)
@@ -140,14 +133,13 @@ def main(args):
 
     params = [p for p in model.parameters() if p.requires_grad]
 
-
     # TODO: Different lr
         
     #
 
-    optimizer = torch.optim.Adam(params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    optimizer = torch.optim.Adam(params, lr=args.lr, weight_decay=args.weight_decay)
+    # optimizer = torch.optim.SGD(params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
-    # lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_step_size, gamma=args.lr_gamma)
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
 
     if args.resume:
@@ -205,7 +197,6 @@ if __name__ == "__main__":
     if args.output_dir:
         utils.mkdir(args.output_dir)
 
-    # main(args)
-    test(args)
+    main(args)
 
 
