@@ -166,14 +166,17 @@ class Piggback_FastRCNNPredictor(nn.Module):
         return scores, bbox_deltas
 
 
-def fasterrcnn_resnet50_fpn(progress=True, num_classes=11, base_model=None, **kwargs):
+def fasterrcnn_resnet50_fpn(
+    progress=True, num_classes=11, base_model=None, 
+    mask_init='1s', mask_scale=1e-2,
+    **kwargs):
 
-    backbone = piggyback_resnet_fpn_backbone(mask_init='1s', mask_scale=6e-3)
+    backbone = piggyback_resnet_fpn_backbone(mask_init, mask_scale)
 
     #---------piggyback---------#
     if base_model:
     #load base model
-        state_dict = torch.load(base_model)["model"]
+        state_dict = torch.load(base_model)
 
         #基类别数目，仅接收参数/增量类别数目，新fc头
         base_num_classes = len(state_dict['roi_heads.box_predictor.cls_score.weight'])
