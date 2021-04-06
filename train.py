@@ -28,8 +28,9 @@ def get_dataset(name, image_set, transform, data_path, num_classes):
 def get_detection_model(args):
 
     model = piggyback_detection.fasterrcnn_resnet50_fpn(
-        num_classes=args.num_classes, pretrained=args.pretrained, base_model=args.base_model,
-        mask_init='1s', mask_scale=6e-3
+        num_classes=args.num_classes, pretrained=args.pretrained, 
+        base_model=args.base_model, mask_init='1s', mask_scale=6e-3,
+        device = args.device
         )
 
     return model
@@ -94,6 +95,7 @@ def get_args():
 
     #piggyback
     parser.add_argument("--base-model", default="model/fasterrcnn_resnet50_fpn_pretrained.pth", type=str)
+    parser.add_argument("--base-classnum", default="model/fasterrcnn_resnet50_fpn_pretrained.pth", type=int)
 
     # distributed training parameters
     parser.add_argument('--world-size', default=1, type=int, help='number of distributed processes')
@@ -137,8 +139,8 @@ def main(args):
         
     #
 
-    optimizer = torch.optim.Adam(params, lr=args.lr, weight_decay=args.weight_decay)
-    # optimizer = torch.optim.SGD(params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    # optimizer = torch.optim.Adam(params, lr=args.lr, weight_decay=args.weight_decay)
+    optimizer = torch.optim.SGD(params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
 
@@ -174,23 +176,6 @@ def main(args):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
-
-def test(args):
-    model = get_detection_model(args)
-
-    sd = torch.load("pb2.4.pth")['model']
-    model.load_state_dict(sd)
-
-    p = model.backbone.parameters()
-    print(p)
-
-    # for name, p in model.named_parameters():
-    #     if 'mask' in name:
-    #         print(name, torch.sum(p.view(-1)>0.005).numpy() / len(p.view(-1)))
-
-    # for name, p in model.named_parameters():
-    #     if p.requires_grad:
-    #         print(name)
 
 if __name__ == "__main__":
     args = get_args()

@@ -168,7 +168,7 @@ class Piggback_FastRCNNPredictor(nn.Module):
 
 def fasterrcnn_resnet50_fpn(
     progress=True, num_classes=11, base_model=None, 
-    mask_init='1s', mask_scale=1e-2,
+    mask_init='1s', mask_scale=1e-2, device="cpu",
     **kwargs):
 
     backbone = piggyback_resnet_fpn_backbone(mask_init, mask_scale)
@@ -176,16 +176,14 @@ def fasterrcnn_resnet50_fpn(
     #---------piggyback---------#
     if base_model:
     #load base model
-        state_dict = torch.load(base_model)
+        state_dict = torch.load(base_model, map_location=torch.device(device))
 
         #基类别数目，仅接收参数/增量类别数目，新fc头
         base_num_classes = len(state_dict['roi_heads.box_predictor.cls_score.weight'])
-
         print(base_num_classes, num_classes)
+
         model = FasterRCNN(backbone, base_num_classes, incremental=num_classes)
-
         model.load_state_dict(state_dict, strict=False)
-
     else:
         model = FasterRCNN(backbone, 45, incremental=11, **kwargs)
     #---------piggyback---------#

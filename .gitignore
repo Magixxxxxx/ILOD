@@ -1,0 +1,7 @@
+.vscode
+model/*
+*.out
+*.pth
+*.sh
+*.pyc
+__pycache__/
