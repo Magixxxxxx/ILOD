@@ -17,14 +17,16 @@ def testDet(model_pth):
 
     for name, p in model.named_parameters():
         if 'mask' in name:
-            print(name, torch.sum(p.view(-1)>0.005).numpy() / len(p.view(-1)))
+            print(name ,p)
+            # print(name, torch.sum(p.view(-1)>0.005).numpy() / len(p.view(-1)))
 
-    for name, p in model.named_parameters():
-        if p.requires_grad:
-            print(name)
+    # for name, p in model.named_parameters():
+    #     if p.requires_grad:
+    #         print(name)
     
 
 if __name__ == '__main__':
     model_pth = "checkpoints/model_19.pth"
     testDet(model_pth)
     
+

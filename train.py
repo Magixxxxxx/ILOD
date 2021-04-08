@@ -94,8 +94,8 @@ def get_args():
     parser.add_argument("--pretrained", default=False, action="store_true")
 
     #piggyback
-    parser.add_argument("--base-model", default="model/fasterrcnn_resnet50_fpn_pretrained.pth", type=str)
-    parser.add_argument("--base-classnum", default="model/fasterrcnn_resnet50_fpn_pretrained.pth", type=int)
+    parser.add_argument("--base-model", default='', type=str)
+    parser.add_argument("--base-classnum", default=91, type=int) #暂时没用
 
     # distributed training parameters
     parser.add_argument('--world-size', default=1, type=int, help='number of distributed processes')
