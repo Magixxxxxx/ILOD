@@ -69,7 +69,7 @@ def get_args():
     parser.add_argument('--model', default='fasterrcnn_resnet50_fpn', 
                         help='backbone model of fasterrcnn, options are: \
                         resnet50,vgg16,mobilenet_v2,squeezenet1_0,alexnet,mnasnet0_5')
-    parser.add_argument('--device', default='cuda', help='device')
+    parser.add_argument('--device', default='cpu', help='device')
     parser.add_argument('-b', '--batch-size', default=1, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')
     parser.add_argument('--epochs', default=18, type=int, metavar='N',
@@ -94,7 +94,7 @@ def get_args():
     parser.add_argument("--pretrained", default=False, action="store_true")
 
     #piggyback
-    parser.add_argument("--base-model", default='', type=str)
+    parser.add_argument("--base-model", default='model/fasterrcnn_resnet50_fpn_pretrained.pth', type=str)
     parser.add_argument("--base-classnum", default=91, type=int) #暂时没用
 
     # distributed training parameters
@@ -134,57 +134,64 @@ def main(args):
         model_without_ddp = model.module
 
     params = [p for p in model.parameters() if p.requires_grad]
-    
-    for name, p in model.named_parameters():
-        if p.requires_grad:
-            print(name)
+
     # TODO: Different lr
         
     #
 
-    optimizer = torch.optim.Adam(params, lr=args.lr, weight_decay=args.weight_decay)
+    # optimizer = torch.optim.Adam(params, lr=args.lr, weight_decay=args.weight_decay)
     # optimizer = torch.optim.SGD(params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
+    # lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
 
-    if args.resume:
-        checkpoint = torch.load(args.resume, map_location='cpu')
-        model_without_ddp.load_state_dict(checkpoint['model'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
-        lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
-        args.start_epoch = checkpoint['epoch'] + 1
+    # if args.resume:
+    #     checkpoint = torch.load(args.resume, map_location='cpu')
+    #     model_without_ddp.load_state_dict(checkpoint['model'])
+    #     optimizer.load_state_dict(checkpoint['optimizer'])
+    #     lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+    #     args.start_epoch = checkpoint['epoch'] + 1
 
-    if args.test_only:
-        evaluate(model, data_loader_test, device=device)  
-        return
+    # if args.test_only:
+    #     evaluate(model, data_loader_test, device=device)  
+    #     return
 
-    print("Start training")
-    start_time = time.time()
+    # print("Start training")
+    # start_time = time.time()
 
-    for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
-            train_sampler.set_epoch(epoch)
-        train_one_epoch(model, optimizer, data_loader, device, epoch, args.print_freq)
-        lr_scheduler.step()
-        if args.output_dir:
-            utils.save_on_master({
-                'model': model_without_ddp.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'lr_scheduler': lr_scheduler.state_dict(),
-                'args': args,
-                'epoch': epoch},
-                os.path.join(args.output_dir, 'model_{}.pth'.format(epoch)))
-        evaluate(model, data_loader_test, device=device)
+    # for epoch in range(args.start_epoch, args.epochs):
+    #     if args.distributed:
+    #         train_sampler.set_epoch(epoch)
+    #     train_one_epoch(model, optimizer, data_loader, device, epoch, args.print_freq)
+    #     lr_scheduler.step()
+    #     if args.output_dir:
+    #         utils.save_on_master({
+    #             'model': model_without_ddp.state_dict(),
+    #             'optimizer': optimizer.state_dict(),
+    #             'lr_scheduler': lr_scheduler.state_dict(),
+    #             'args': args,
+    #             'epoch': epoch},
+    #             os.path.join(args.output_dir, 'model_{}.pth'.format(epoch)))
+    #     evaluate(model, data_loader_test, device=device)
 
-    total_time = time.time() - start_time
-    total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print('Training time {}'.format(total_time_str))
+    # total_time = time.time() - start_time
+    # total_time_str = str(datetime.timedelta(seconds=int(total_time)))
+    # print('Training time {}'.format(total_time_str))
+
+def test(args):
+
+    model = get_detection_model(args)
+    # sd = torch.load("checkpoints/model_19.pth", map_location=torch.device(args.device))
+
+    # for name, p in sd['model'].items():
+    #     print(name)        
+    for name, p in model.named_parameters():
+        print(name)    
 
 if __name__ == "__main__":
     args = get_args()
     if args.output_dir:
         utils.mkdir(args.output_dir)
 
-    main(args)
+    test(args)
 
 

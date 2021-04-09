@@ -183,10 +183,11 @@ def fasterrcnn_resnet50_fpn(
 
         model = FasterRCNN(backbone, base_num_classes, incremental=num_classes)
         model.load_state_dict(state_dict, strict=False)
-    else:
-        print("get fasterrcnn cls:{}".format(num_classes))
-        model = torchvision.models.detection.__dict__['fasterrcnn_resnet50_fpn'](num_classes=num_classes,
-                                        pretrained=True)
     #---------piggyback---------#
+    
+    else:
+        from torchvision.models import detection 
+        print("get fasterrcnn cls:{}".format(num_classes))
+        model = detection.fasterrcnn_resnet50_fpn(num_classes=91, pretrained=True)
 
     return model

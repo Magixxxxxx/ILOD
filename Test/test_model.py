@@ -26,7 +26,7 @@ def testDet(model_pth):
     
 
 if __name__ == '__main__':
-    model_pth = "checkpoints/model_19.pth"
+    model_pth = "model/pb2.4.pth"
     testDet(model_pth)
     
 
