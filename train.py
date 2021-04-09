@@ -27,12 +27,11 @@ def get_dataset(name, image_set, transform, data_path, num_classes):
 
 def get_detection_model(args):
 
-    model = piggyback_detection.fasterrcnn_resnet50_fpn(
-        num_classes=args.num_classes, pretrained=args.pretrained, 
-        base_model=args.base_model, mask_init='1s', mask_scale=6e-3,
-        device = args.device
-        )
-
+    model = piggyback_detection.pb_fasterrcnn_resnet50_fpn(args)
+    print('Parameters requires_grad:')
+    for name, p in model.named_parameters():
+        if p.requires_grad:
+            print(name) 
     return model
     
 def get_transform(train):
@@ -96,6 +95,11 @@ def get_args():
     #piggyback
     parser.add_argument("--base-model", default='', type=str)
     parser.add_argument("--base-classnum", default=91, type=int) #暂时没用
+    parser.add_argument('--pb', default=[0,1,2,3], nargs='+', type=str,
+                        help="piggyback mode 0:body, 1:fpn, 2:rpn, 3:roi")
+
+    parser.add_argument("--mask-init", default='1s', type=str)
+    parser.add_argument("--mask-scale", default=6e-3, type=float)
 
     # distributed training parameters
     parser.add_argument('--world-size', default=1, type=int, help='number of distributed processes')
@@ -129,20 +133,24 @@ def main(args):
     model = get_detection_model(args)
     model.to(device)
     model_without_ddp = model
+    
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=True)
         model_without_ddp = model.module
-
-    params = [p for p in model.parameters() if p.requires_grad]
     
-    for name, p in model.named_parameters():
-        if p.requires_grad:
-            print(name)
     # TODO: Different lr
-        
-    #
+    # distributed之后，加上module
+    backbone_params = [p for p in model.module.backbone.parameters() if p.requires_grad]
+    rpn_params = [p for p in model.module.rpn.parameters() if p.requires_grad]
+    roi_params = [p for p in model.module.roi_heads.parameters() if p.requires_grad]
 
-    optimizer = torch.optim.Adam(params, lr=args.lr, weight_decay=args.weight_decay)
+    optimizer = torch.optim.Adam([
+        {'params': backbone_params, 'lr': 0.0001, 'weight_decay':args.weight_decay},
+        {'params': rpn_params, 'lr': 0.001, 'weight_decay':args.weight_decay},
+        {'params': roi_params, 'lr': 0.001, 'weight_decay':args.weight_decay},
+    ])
+
+    # optimizer = torch.optim.Adam(params, lr=args.lr, weight_decay=args.weight_decay)
     # optimizer = torch.optim.SGD(params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
@@ -184,7 +192,6 @@ if __name__ == "__main__":
     args = get_args()
     if args.output_dir:
         utils.mkdir(args.output_dir)
-
     main(args)
 
 
