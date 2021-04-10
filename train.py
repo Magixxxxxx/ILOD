@@ -75,9 +75,11 @@ def get_args():
                         help='number of total epochs to run, 30')
     parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--lr', default=0.02, type=float,
-                        help='initial learning rate, 0.02 is the default value for training '
-                        'on 8 gpus and 2 images_per_gpu')
+
+    parser.add_argument('--lr-m', default=0.02, type=float,
+                        help='0.02 default for 8 gpus and 2 images_per_gpu')
+    parser.add_argument('--lr-w', default=1e-4, type=float)       
+
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M')
     parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
                         metavar='W', help='weight decay (default: 1e-4)', dest='weight_decay')
@@ -139,15 +141,15 @@ def main(args):
         model_without_ddp = model.module
     
     # TODO: Different lr
-    # distributed之后，加上module
+    # distributed之后，加上module / pb mode 0,1
     backbone_params = [p for p in model.module.backbone.parameters() if p.requires_grad]
     rpn_params = [p for p in model.module.rpn.parameters() if p.requires_grad]
     roi_params = [p for p in model.module.roi_heads.parameters() if p.requires_grad]
 
     optimizer = torch.optim.Adam([
-        {'params': backbone_params, 'lr': 0.0001, 'weight_decay':args.weight_decay},
-        {'params': rpn_params, 'lr': 0.001, 'weight_decay':args.weight_decay},
-        {'params': roi_params, 'lr': 0.001, 'weight_decay':args.weight_decay},
+        {'params': backbone_params, 'lr': args.lr_m, 'weight_decay':args.weight_decay},
+        {'params': rpn_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
+        {'params': roi_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
     ])
 
     # optimizer = torch.optim.Adam(params, lr=args.lr, weight_decay=args.weight_decay)

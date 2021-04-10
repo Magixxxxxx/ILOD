@@ -1,27 +1,43 @@
 import torch
 from torchvision.models import resnet
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
-
-import sys
+import numpy as np
+import sys,os
 sys.path.append(".")
 
 import piggyback_detection
 
-def testDet(model_pth):  
+def testMask(path):
+    from collections import defaultdict
+    mask_density = defaultdict(list)
+    mask_mean = defaultdict(list)
 
-    state_dict = torch.load(model_pth, map_location=torch.device('cpu'))
+    if path.endswith('.pth'):
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
+        for name,p in state_dict['model'].items():
+            if 'mask' in name:
+                density = torch.sum(p.view(-1)<0.005).numpy() / len(p.view(-1))
+                mean = torch.mean(p.view(-1))
+                max_mask = torch.max(p.view(-1))
+                min_mask = torch.min(p.view(-1))
+                print("{} \n zeroed:{:.3f} mean:{:.3f} max:{:.3f} min:{:.3f}".format(name,density,mean,max_mask,min_mask))
+    else:
+        for model_pth in os.listdir(path):
+            state_dict = torch.load(os.path.join(path,model_pth), map_location=torch.device('cpu'))
+            for name,p in state_dict['model'].items():
+                if 'mask' in name:
+                    density = torch.sum(p.view(-1)>0.005).numpy() / len(p.view(-1))
+                    mean = torch.mean(p.view(-1))
+                    mask_density[name].append(density)
+                    mask_mean[name].append(mean)
 
-    for name,p in state_dict['model'].items():
-        if 'mask' in name:
-            print(name, torch.sum(p.view(-1)>0.005).numpy() / len(p.view(-1)))
-
-    # for name, p in model.named_parameters():
-    #     if p.requires_grad:
-    #         print(name)
+    np.save('mask_density.npy',mask_density)
+    np.save('mask_mean.npy',mask_mean)
     
 
 if __name__ == '__main__':
-    model_pth = "checkpoints/model_1.pth"
-    testDet(model_pth)
+    model = "ft/model_8.pth"
+    path = "checkpoints/"
+    testMask(model)
     
 

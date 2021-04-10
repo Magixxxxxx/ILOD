@@ -4,4 +4,5 @@ model/*
 *.pth
 *.sh
 *.pyc
+*.npy
 __pycache__/

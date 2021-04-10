@@ -87,11 +87,16 @@ def main(args):
 
 def test(args):
     args.device = 'cpu'
-    args.pb = [0,1,2]
+    args.pb = [0,1]
     args.base_model = 'model/fasterrcnn_resnet50_fpn_pretrained.pth'
 
+    base_model = 'model/fasterrcnn_resnet50_fpn_pretrained.pth'
+    sd = torch.load(base_model, map_location=torch.device(args.device))
+    
+    for n,p in sd.items():
+        print(n)
     model = get_detection_model(args)
-
+    model.load_state_dict(sd, strict=False)
 if __name__ == "__main__":
     args = get_args()
     if args.output_dir:

@@ -100,8 +100,8 @@ def main(output_dir='./json', ann_file='train.txt',rg=(0,39)):
         json.dump(data, f, indent=2)
 
 if __name__ == '__main__':
-    ann_file = "../../data/COCO2017/annotations/instances_train2017.json"
-    rg = (0,39)
+    ann_file = "../../Data/COCO2017/annotations/instances_train2017.json"
+    rg = (40,49)
 
     main(output_dir='./json', ann_file=ann_file, rg=rg)
     print(" done!")

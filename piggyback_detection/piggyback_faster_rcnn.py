@@ -176,10 +176,14 @@ def pb_fasterrcnn_resnet50_fpn(args):
         print("get piggyback base:{} incre:{}".format(base_num_classes, args.num_classes))
 
         #0,1
-        backbone = piggyback_resnet_fpn_backbone(
-            args.mask_init, 
-            args.mask_scale
-            )
+        if 1 in args.pb:
+            backbone = piggyback_resnet_fpn_backbone(
+                args.mask_init, 
+                args.mask_scale
+                )
+        else:
+            from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
+            backbone = resnet_fpn_backbone('resnet50',pretrained=False)
 
         model = Pb_FasterRCNN(
             backbone, base_num_classes, 
