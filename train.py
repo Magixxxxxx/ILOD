@@ -28,10 +28,10 @@ def get_dataset(name, image_set, transform, data_path, num_classes):
 def get_detection_model(args):
 
     model = piggyback_detection.pb_fasterrcnn_resnet50_fpn(args)
-    print('Parameters requires_grad:')
-    for name, p in model.named_parameters():
-        if p.requires_grad:
-            print(name) 
+    # print('Parameters requires_grad:')
+    # for name, p in model.named_parameters():
+    #     if p.requires_grad:
+    #         print(name) 
     return model
     
 def get_transform(train):
@@ -146,13 +146,13 @@ def main(args):
     rpn_params = [p for p in model.module.rpn.parameters() if p.requires_grad]
     roi_params = [p for p in model.module.roi_heads.parameters() if p.requires_grad]
 
-    optimizer = torch.optim.Adam([
-        {'params': backbone_params, 'lr': args.lr_m, 'weight_decay':args.weight_decay},
-        {'params': rpn_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
-        {'params': roi_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
-    ])
+    # optimizer = torch.optim.Adam([
+    #     {'params': backbone_params, 'lr': args.lr_m, 'weight_decay':args.weight_decay},
+    #     {'params': rpn_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
+    #     {'params': roi_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
+    # ])
 
-    # optimizer = torch.optim.Adam(params, lr=args.lr, weight_decay=args.weight_decay)
+    optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=args.lr_w, weight_decay=args.weight_decay)
     # optimizer = torch.optim.SGD(params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)

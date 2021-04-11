@@ -87,16 +87,33 @@ def main(args):
 
 def test(args):
     args.device = 'cpu'
-    args.pb = [0,1]
+    args.pb = [0]
     args.base_model = 'model/fasterrcnn_resnet50_fpn_pretrained.pth'
 
     base_model = 'model/fasterrcnn_resnet50_fpn_pretrained.pth'
     sd = torch.load(base_model, map_location=torch.device(args.device))
     
-    for n,p in sd.items():
+    # for n,p in sd.items():
+    #     print(n)
+    model1 = get_detection_model(args)
+    model1.load_state_dict(sd, strict=False)
+
+    model1.add_module('roi_heads.box_head',)
+    # from torchvision.models import detection 
+    # model2 = detection.fasterrcnn_resnet50_fpn(num_classes=11, pretrained=False)
+    # model2.load_state_dict(sd, strict=False)
+
+    # for p1,p2 in zip(model1.named_parameters(),model2.named_parameters()):
+    #     if(p1[0]==p2[0]):
+    #         print(p1[0],p1[1]==p2[1])
+
+def test2(args):
+    from torchvision.models import resnet50
+    backbone = resnet50()
+    for n in backbone.modules():
         print(n)
-    model = get_detection_model(args)
-    model.load_state_dict(sd, strict=False)
+
+
 if __name__ == "__main__":
     args = get_args()
     if args.output_dir:

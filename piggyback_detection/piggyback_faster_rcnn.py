@@ -8,7 +8,7 @@ from torchvision.ops import misc as misc_nn_ops
 from torchvision.ops import MultiScaleRoIAlign
 
 from .generalized_rcnn import GeneralizedRCNN
-from .rpn import AnchorGenerator, RPNHead, RegionProposalNetwork
+from .rpn import AnchorGenerator, RegionProposalNetwork
 from .roi_heads import RoIHeads
 from .transform import GeneralizedRCNNTransform
 from .backbone_utils import piggyback_resnet_fpn_backbone
@@ -74,6 +74,8 @@ class Pb_FasterRCNN(GeneralizedRCNN):
                     out_channels, rpn_anchor_generator.num_anchors_per_location()[0],
                     mask_init=mask_init, mask_scale=mask_scale)
             else:
+                from .rpn import RPNHead
+                print("2 original PRNHead------------")
                 rpn_head = RPNHead(
                     out_channels, rpn_anchor_generator.num_anchors_per_location()[0])
 
@@ -101,6 +103,7 @@ class Pb_FasterRCNN(GeneralizedRCNN):
                     mask_init=mask_init, mask_scale=mask_scale)
             else:
                 from torchvision.models.detection.faster_rcnn import TwoMLPHead
+                print("3 original TwoMLPHead---------")
                 box_head = TwoMLPHead(
                     out_channels * resolution ** 2,
                     representation_size)
@@ -108,9 +111,18 @@ class Pb_FasterRCNN(GeneralizedRCNN):
         #pb_roi_predictor
         if box_predictor is None:
             representation_size = 1024
-            box_predictor = Piggback_FastRCNNPredictor(
-                representation_size, num_classes,
-                incremental, mask_init=mask_init, mask_scale=mask_scale)
+            #original
+            if False:
+                box_predictor = Piggback_FastRCNNPredictor(
+                    representation_size, num_classes,
+                    incremental
+                )
+            else:
+                print("original predictor----------")
+                from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+                box_predictor = FastRCNNPredictor(
+                    representation_size, incremental
+                )
 
         roi_heads = RoIHeads(
             box_roi_pool, box_head, box_predictor,
@@ -148,7 +160,7 @@ class Piggback_TwoMLPHead(nn.Module):
 class Piggback_FastRCNNPredictor(nn.Module):
 
     def __init__(self, in_channels, num_classes,
-        incremental, mask_init='1s', mask_scale=6e-3):
+        incremental):
         super(Piggback_FastRCNNPredictor, self).__init__()
         #incre_cls_score：真正的梯度传导对象
         self.cls_score = nn.Linear(in_channels, num_classes) 
@@ -156,7 +168,7 @@ class Piggback_FastRCNNPredictor(nn.Module):
 
         #新分类，预测头
         self.incre_cls_score = nn.Linear(in_channels, incremental)
-        self.incre_bbox_pred = nn.Linear(in_channels, num_classes * 4)
+        self.incre_bbox_pred = nn.Linear(in_channels, incremental * 4)
 
     def forward(self, x):
         if x.dim() == 4:
@@ -181,9 +193,11 @@ def pb_fasterrcnn_resnet50_fpn(args):
                 args.mask_init, 
                 args.mask_scale
                 )
-        else:
-            from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
-            backbone = resnet_fpn_backbone('resnet50',pretrained=False)
+        else: 
+            from .backbone_utils import resnet_fpn_backbone
+            from torchvision.ops.misc import FrozenBatchNorm2d
+            print("original backbone-------------")
+            backbone = resnet_fpn_backbone('resnet50', pretrained=True, norm_layer=FrozenBatchNorm2d)
 
         model = Pb_FasterRCNN(
             backbone, base_num_classes, 
@@ -193,7 +207,8 @@ def pb_fasterrcnn_resnet50_fpn(args):
             pb_mode=args.pb
             )
             
-        model.load_state_dict(state_dict, strict=False)
+        # model.load_state_dict(state_dict, strict=False)
+        
     #---------piggyback---------#
     else:
         from torchvision.models import detection 

@@ -23,10 +23,10 @@ class BackboneWithFPN(nn.Sequential):
         self.out_channels = out_channels
 
 
-def resnet_fpn_backbone(backbone_name, pretrained):
+def resnet_fpn_backbone(backbone_name, pretrained, norm_layer=misc_nn_ops.FrozenBatchNorm2d):
     backbone = resnet.__dict__[backbone_name](
         pretrained=pretrained,
-        norm_layer=misc_nn_ops.FrozenBatchNorm2d)
+        norm_layer=norm_layer)
     # freeze layers
     for name, parameter in backbone.named_parameters():
         if 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
@@ -36,13 +36,14 @@ def resnet_fpn_backbone(backbone_name, pretrained):
 
     in_channels_stage2 = backbone.inplanes // 8
     in_channels_list = [
-        in_c-hannels_stage2,
+        in_channels_stage2,
         in_channels_stage2 * 2,
         in_channels_stage2 * 4,
         in_channels_stage2 * 8,
     ]
     out_channels = 256
-    return BackboneWithFPN(backbone, return_layers, in_channels_list, out_channels)
+    from torchvision.models.detection.backbone_utils import BackboneWithFPN as BwF
+    return BwF(backbone, return_layers, in_channels_list, out_channels)
 
 
 def piggyback_resnet_fpn_backbone(mask_init='1s', mask_scale=1e-2):
