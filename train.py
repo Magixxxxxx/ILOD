@@ -18,7 +18,7 @@ import piggyback_detection
 def get_dataset(name, image_set, transform, data_path, num_classes):
     paths = {
         "coco": (data_path, get_coco, None), # 修改自定义数据集类别数量：num_classes+1(背景)
-        "coco[40,49]": (data_path, get_coco, "[40,49]")
+        "coco[47,48]": (data_path, get_coco, "[47,48]")
     }
     p, dataset_func, ilod = paths[name]
 
@@ -26,12 +26,42 @@ def get_dataset(name, image_set, transform, data_path, num_classes):
     return dataset
 
 def get_detection_model(args):
+    # model = piggyback_detection.pb_fasterrcnn_resnet50_fpn(args)
+    from torchvision.models.detection import faster_rcnn
+    from torchvision.models.detection.backbone_utils import BackboneWithFPN
+    from torchvision.models import resnet
 
-    model = piggyback_detection.pb_fasterrcnn_resnet50_fpn(args)
-    # print('Parameters requires_grad:')
-    # for name, p in model.named_parameters():
-    #     if p.requires_grad:
-    #         print(name) 
+    from piggyback_detection import piggyback_resnet
+    piggyres50 = piggyback_resnet.piggyback_resnet50()
+    sd = torch.load("model/resnet50-19c8e357.pth", map_location=torch.device('cpu'))
+    piggyres50.load_state_dict(sd, strict=False)
+    # res50 = resnet.__dict__['resnet50'](pretrained=True)
+
+    return_layers = {'layer1': '0', 'layer2': '1', 'layer3': '2', 'layer4': '3'}
+    in_channels_stage2 = piggyres50.inplanes // 8
+    in_channels_list = [
+        in_channels_stage2,
+        in_channels_stage2 * 2,
+        in_channels_stage2 * 4,
+        in_channels_stage2 * 8,
+    ]
+    out_channels = 256
+    
+    backbone = BackboneWithFPN(piggyres50, return_layers, in_channels_list, out_channels)
+    model = faster_rcnn.FasterRCNN(backbone,num_classes=3)
+
+    for layer in model.modules():
+        if isinstance(layer, nn.BatchNorm2d):
+            layer.eval()
+    # for n,p in model.named_parameters():
+    #     if 'backbone' in n:
+    #         p.requires_grad_(False)
+
+    print("Parameters Requires grad: ")
+    for n,p in model.named_parameters():
+        if p.requires_grad:
+            print(n)
+
     return model
     
 def get_transform(train):
@@ -57,12 +87,37 @@ def get_samplers(args, dataset, dataset_test):
 
     return train_batch_sampler, train_sampler, test_sampler    
 
+def get_optimizer(args, model):
+    # distributed之后，参数需加上module / pb mode 0,1
+    backbone_params = [p for p in model.module.backbone.parameters() if p.requires_grad]
+    rpn_params = [p for p in model.module.rpn.parameters() if p.requires_grad]
+    roi_params = [p for p in model.module.roi_heads.parameters() if p.requires_grad]
+    params = [p for p in model.module.parameters() if p.requires_grad]
+
+    # ADAM
+    optimizer = torch.optim.Adam(params, lr=args.lr_w, weight_decay=args.weight_decay)
+    # optimizer = torch.optim.Adam([
+    #     {'params': backbone_params, 'lr': args.lr_m, 'weight_decay':args.weight_decay},
+    #     {'params': rpn_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
+    #     {'params': roi_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
+    # ])
+
+    # SGD
+    # optimizer = torch.optim.SGD(params, lr=args.lr_w, momentum=args.momentum, weight_decay=args.weight_decay)
+    # optimizer = torch.optim.SGD([
+    #     {'params':backbone_params, 'lr':args.lr_m, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
+    #     {'params':rpn_params, 'lr':args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
+    #     {'params':roi_params, 'lr':args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay}
+    # ])
+
+    return optimizer 
+
 def get_args():
     parser = argparse.ArgumentParser(description=__doc__)
 
-    parser.add_argument('--data-path', default='../data/COCO2017', 
+    parser.add_argument('--data-path', default='/home/zhaojiawei/Data/COCO2017', 
                         help='dataset path')
-    parser.add_argument('--dataset', default='coco[40,49]', help='dataset')
+    parser.add_argument('--dataset', default='coco[47,48]', help='dataset')
     parser.add_argument('--num-classes', default=11, 
                         help='number of classes in dataset(+1 background)', type=int)
     parser.add_argument('--model', default='fasterrcnn_resnet50_fpn', 
@@ -98,7 +153,7 @@ def get_args():
     parser.add_argument("--base-model", default='', type=str)
     parser.add_argument("--base-classnum", default=91, type=int) #暂时没用
     parser.add_argument('--pb', default=[0,1,2,3], nargs='+', type=str,
-                        help="piggyback mode 0:body, 1:fpn, 2:rpn, 3:roi")
+                        help="piggyback mode 0:none, 1:backbone, 2:rpn, 3:roi")
 
     parser.add_argument("--mask-init", default='1s', type=str)
     parser.add_argument("--mask-scale", default=6e-3, type=float)
@@ -139,21 +194,8 @@ def main(args):
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=True)
         model_without_ddp = model.module
-    
-    # TODO: Different lr
-    # distributed之后，加上module / pb mode 0,1
-    backbone_params = [p for p in model.module.backbone.parameters() if p.requires_grad]
-    rpn_params = [p for p in model.module.rpn.parameters() if p.requires_grad]
-    roi_params = [p for p in model.module.roi_heads.parameters() if p.requires_grad]
 
-    # optimizer = torch.optim.Adam([
-    #     {'params': backbone_params, 'lr': args.lr_m, 'weight_decay':args.weight_decay},
-    #     {'params': rpn_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
-    #     {'params': roi_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
-    # ])
-
-    optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=args.lr_w, weight_decay=args.weight_decay)
-    # optimizer = torch.optim.SGD(params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    optimizer = get_optimizer(args, model)
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
 

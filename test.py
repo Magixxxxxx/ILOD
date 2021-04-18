@@ -87,7 +87,7 @@ def main(args):
 
 def test(args):
     args.device = 'cpu'
-    args.pb = [0]
+    args.pb = ['0','1']
     args.base_model = 'model/fasterrcnn_resnet50_fpn_pretrained.pth'
 
     base_model = 'model/fasterrcnn_resnet50_fpn_pretrained.pth'
@@ -95,10 +95,11 @@ def test(args):
     
     # for n,p in sd.items():
     #     print(n)
-    model1 = get_detection_model(args)
-    model1.load_state_dict(sd, strict=False)
+    model = get_detection_model(args)
+    
+    # model1.load_state_dict(sd, strict=False)
 
-    model1.add_module('roi_heads.box_head',)
+    # model1.add_module('roi_heads.box_head',)
     # from torchvision.models import detection 
     # model2 = detection.fasterrcnn_resnet50_fpn(num_classes=11, pretrained=False)
     # model2.load_state_dict(sd, strict=False)

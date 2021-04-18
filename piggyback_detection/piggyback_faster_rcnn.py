@@ -69,7 +69,7 @@ class Pb_FasterRCNN(GeneralizedRCNN):
         
         #2 pb_PRNHead
         if rpn_head is None:
-            if 2 in pb_mode:
+            if '2' in pb_mode:
                 rpn_head = Piggyback_PRNHead(
                     out_channels, rpn_anchor_generator.num_anchors_per_location()[0],
                     mask_init=mask_init, mask_scale=mask_scale)
@@ -96,7 +96,7 @@ class Pb_FasterRCNN(GeneralizedRCNN):
             resolution = box_roi_pool.output_size[0]
             representation_size = 1024
         #3 pb_roi_mlp
-            if 3 in pb_mode:
+            if '3' in pb_mode:
                 box_head = Piggback_TwoMLPHead(
                     out_channels * resolution ** 2,
                     representation_size, 
@@ -185,10 +185,11 @@ def pb_fasterrcnn_resnet50_fpn(args):
     if args.base_model:
         state_dict = torch.load(args.base_model, map_location=torch.device(args.device))
         base_num_classes = len(state_dict['roi_heads.box_predictor.cls_score.weight'])
-        print("get piggyback base:{} incre:{}".format(base_num_classes, args.num_classes))
+        print("piggyback base:{} incre:{}".format(base_num_classes, args.num_classes))
 
-        #0,1
-        if 1 in args.pb:
+        #1
+        print(args.pb)
+        if '1' in args.pb:
             backbone = piggyback_resnet_fpn_backbone(
                 args.mask_init, 
                 args.mask_scale
@@ -212,7 +213,7 @@ def pb_fasterrcnn_resnet50_fpn(args):
     #---------piggyback---------#
     else:
         from torchvision.models import detection 
-        print("get fasterrcnn cls:{}".format(args.num_classes))
+        print("fasterrcnn cls:{}".format(args.num_classes))
         model = detection.fasterrcnn_resnet50_fpn(num_classes=91, pretrained=True)
 
     return model

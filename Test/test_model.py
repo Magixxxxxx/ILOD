@@ -36,7 +36,7 @@ def testMask(path):
     
 
 if __name__ == '__main__':
-    model = "ft/model_8.pth"
+    model = "frozeBN/model_0.pth"
     path = "checkpoints/"
     testMask(model)
     

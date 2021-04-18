@@ -297,7 +297,9 @@ def get_coco(root, image_set, transforms, mode='instances', ilod=None):
         "trainval[60,69]": ("train2017", os.path.join("annotations",'[60, 69]-instances_train2017.json')),
         "test[60,69]": ("val2017", os.path.join("annotations", '[60, 69]-instances_val2017.json')), 
         "trainval[70,79]": ("train2017", os.path.join("annotations", '[70, 79]-instances_train2017.json')),
-        "test[70,79]": ("val2017", os.path.join("annotations", '[70, 79]-instances_val2017.json')),   
+        "test[70,79]": ("val2017", os.path.join("annotations", '[70, 79]-instances_val2017.json')),
+        "trainval[47,48]": ("train2017", os.path.join("annotations", '[47, 48]-instances_train2017.json')),
+        "test[47,48]": ("val2017", os.path.join("annotations", '[47, 48]-instances_val2017.json')),  
     }
 
     t = [ConvertCocoToBox()]
