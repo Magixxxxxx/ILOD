@@ -114,7 +114,6 @@ def test2(args):
     for n in backbone.modules():
         print(n)
 
-
 if __name__ == "__main__":
     args = get_args()
     if args.output_dir:

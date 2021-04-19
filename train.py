@@ -30,15 +30,19 @@ def get_detection_model(args):
     from torchvision.models.detection import faster_rcnn
     from torchvision.models.detection.backbone_utils import BackboneWithFPN
     from torchvision.models import resnet
-
     from piggyback_detection import piggyback_resnet
-    piggyres50 = piggyback_resnet.piggyback_resnet50()
-    sd = torch.load("model/resnet50-19c8e357.pth", map_location=torch.device('cpu'))
-    piggyres50.load_state_dict(sd, strict=False)
-    # res50 = resnet.__dict__['resnet50'](pretrained=True)
+
+    if 'res50' in args.pb:
+        print("piggyback res50")
+        res50 = piggyback_resnet.piggyback_resnet50()
+        # sd = torch.load("model/resnet50-19c8e357.pth", map_location=torch.device('cpu'))
+        # res50.load_state_dict(sd, strict=False)
+    else:
+        print("base res50")
+        res50 = resnet.__dict__['resnet50'](pretrained=True)
 
     return_layers = {'layer1': '0', 'layer2': '1', 'layer3': '2', 'layer4': '3'}
-    in_channels_stage2 = piggyres50.inplanes // 8
+    in_channels_stage2 = res50.inplanes // 8
     in_channels_list = [
         in_channels_stage2,
         in_channels_stage2 * 2,
@@ -47,18 +51,24 @@ def get_detection_model(args):
     ]
     out_channels = 256
     
-    backbone = BackboneWithFPN(piggyres50, return_layers, in_channels_list, out_channels)
+    if 'fpn' in args.pb:
+        print("piggyback fpn")
+        backbone = piggyback_detection.backbone_utils.BackboneWithFPN(res50, return_layers, in_channels_list, out_channels)
+    else:
+        print("base fpn")
+        backbone = BackboneWithFPN(res50, return_layers, in_channels_list, out_channels)
+
+    print("base detector")
     model = faster_rcnn.FasterRCNN(backbone,num_classes=3)
 
     for layer in model.modules():
         if isinstance(layer, nn.BatchNorm2d):
             layer.eval()
-    # for n,p in model.named_parameters():
-    #     if 'backbone' in n:
-    #         p.requires_grad_(False)
 
     print("Parameters Requires grad: ")
     for n,p in model.named_parameters():
+        if 'bn' in n:
+            p.requires_grad_(False)
         if p.requires_grad:
             print(n)
 
@@ -89,23 +99,26 @@ def get_samplers(args, dataset, dataset_test):
 
 def get_optimizer(args, model):
     # distributed之后，参数需加上module / pb mode 0,1
-    backbone_params = [p for p in model.module.backbone.parameters() if p.requires_grad]
+    backbone_params = [p for p in model.module.backbone.body.parameters() if p.requires_grad]
+    fpn_params = [p for p in model.module.backbone.fpn.parameters() if p.requires_grad]
     rpn_params = [p for p in model.module.rpn.parameters() if p.requires_grad]
     roi_params = [p for p in model.module.roi_heads.parameters() if p.requires_grad]
     params = [p for p in model.module.parameters() if p.requires_grad]
 
     # ADAM
-    optimizer = torch.optim.Adam(params, lr=args.lr_w, weight_decay=args.weight_decay)
-    # optimizer = torch.optim.Adam([
-    #     {'params': backbone_params, 'lr': args.lr_m, 'weight_decay':args.weight_decay},
-    #     {'params': rpn_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
-    #     {'params': roi_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
-    # ])
+    # optimizer = torch.optim.Adam(params, lr=args.lr_w, weight_decay=args.weight_decay)
+    optimizer = torch.optim.Adam([
+        {'params': backbone_params, 'lr': args.lr_m, 'weight_decay':args.weight_decay},
+        {'params': fpn_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
+        {'params': rpn_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
+        {'params': roi_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
+    ])
 
     # SGD
     # optimizer = torch.optim.SGD(params, lr=args.lr_w, momentum=args.momentum, weight_decay=args.weight_decay)
     # optimizer = torch.optim.SGD([
     #     {'params':backbone_params, 'lr':args.lr_m, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
+    #     {'params':fpn_params, 'lr': args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
     #     {'params':rpn_params, 'lr':args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
     #     {'params':roi_params, 'lr':args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay}
     # ])
@@ -114,7 +127,6 @@ def get_optimizer(args, model):
 
 def get_args():
     parser = argparse.ArgumentParser(description=__doc__)
-
     parser.add_argument('--data-path', default='/home/zhaojiawei/Data/COCO2017', 
                         help='dataset path')
     parser.add_argument('--dataset', default='coco[47,48]', help='dataset')
@@ -130,11 +142,9 @@ def get_args():
                         help='number of total epochs to run, 30')
     parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                         help='number of data loading workers (default: 4)')
-
     parser.add_argument('--lr-m', default=0.02, type=float,
                         help='0.02 default for 8 gpus and 2 images_per_gpu')
     parser.add_argument('--lr-w', default=1e-4, type=float)       
-
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M')
     parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
                         metavar='W', help='weight decay (default: 1e-4)', dest='weight_decay')
@@ -152,11 +162,11 @@ def get_args():
     #piggyback
     parser.add_argument("--base-model", default='', type=str)
     parser.add_argument("--base-classnum", default=91, type=int) #暂时没用
-    parser.add_argument('--pb', default=[0,1,2,3], nargs='+', type=str,
-                        help="piggyback mode 0:none, 1:backbone, 2:rpn, 3:roi")
+    parser.add_argument('--pb', default='', nargs='+', type=str,
+                        help="piggyback mode :res50, fpn, rpn, roi")
 
     parser.add_argument("--mask-init", default='1s', type=str)
-    parser.add_argument("--mask-scale", default=6e-3, type=float)
+    parser.add_argument("--mask-scale", default=1e-2, type=float)
 
     # distributed training parameters
     parser.add_argument('--world-size', default=1, type=int, help='number of distributed processes')

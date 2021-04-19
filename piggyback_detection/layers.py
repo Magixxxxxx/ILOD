@@ -8,6 +8,20 @@ from torch.nn.parameter import Parameter
 
 DEFAULT_THRESHOLD = 5e-3
 
+class BinarizerV2(torch.autograd.Function):
+    """Binarizes {0, 1} a real valued tensor."""
+    @staticmethod
+    def forward(self, inputs):
+        # input: mask_real
+        outputs = inputs.clone()
+        outputs[inputs.le(DEFAULT_THRESHOLD)] = 0
+        outputs[inputs.gt(DEFAULT_THRESHOLD)] = 1
+        return outputs
+
+    @staticmethod
+    def backward(self, gradOutput):
+        return gradOutput
+
 class Binarizer(torch.autograd.Function):
     """Binarizes {0, 1} a real valued tensor."""
     @staticmethod
