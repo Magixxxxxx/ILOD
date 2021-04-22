@@ -11,7 +11,7 @@ from utils import utils
 from utils import transforms as T
 from utils.group_by_aspect_ratio import GroupedBatchSampler, create_aspect_ratio_groups
 from utils.coco_utils import get_coco,get_voc
-from utils.engine import train_one_epoch, evaluate
+from utils.engine import train_one_epoch, train_one_epoch_AdamSGD, evaluate
 
 import piggyback_detection
 
@@ -110,12 +110,12 @@ def get_samplers(args, dataset, dataset_test):
 
 def get_optimizer(args, model):
     # distributed之后，参数需加上module / pb mode 0,1
-    masks = [p for n, p in model.module.backbone.body.named_parameters() if 'mask' in n]
-    params = [p for n, p in model.module.backbone.body.named_parameters() if 'mask' not in n]
+    masks = [p for n, p in model.module.named_parameters() if 'mask' in n]
+    params = [p for n, p in model.module.named_parameters() if 'mask' not in n]
 
     if args.optim == 'Adam':
         if args.lr_m:
-            print('different lr m:{} w:{}'.format(lr_m,lr_w))
+            print('\nAdam lr m:{} w:{}'.format(lr_m,lr_w))
             optimizer = torch.optim.Adam([
                 {'params': masks, 'lr': args.lr_m, 'weight_decay':args.weight_decay},
                 {'params': params, 'lr': args.lr_w, 'weight_decay':args.weight_decay}
@@ -125,16 +125,13 @@ def get_optimizer(args, model):
 
     elif args.optim == 'SGD':
         if args.lr_m:
-            print('different lr m:{} w:{}'.format(lr_m,lr_w))
+            print('\nSGD lr m:{} w:{}'.format(lr_m,lr_w))
             optimizer = torch.optim.SGD([
                 {'params':masks, 'lr':args.lr_m, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
                 {'params':params, 'lr': args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
             ])
         else:
             optimizer = torch.optim.SGD(params, lr=args.lr_w, momentum=args.momentum, weight_decay=args.weight_decay)
-    elif args.optim == 'AdamSGD':
-        pass
-
     return optimizer 
 
 def get_args():
@@ -220,9 +217,18 @@ def main(args):
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=True)
         model_without_ddp = model.module
 
-    optimizer = get_optimizer(args, model)
+    if args.optim == 'AdamSGD':
+        print('AdamSGD lr Adam:{} SGD:{}'.format(args.lr_m, args.lr_w))
+        optimizerAdam = torch.optim.Adam([p for n, p in model.module.named_parameters() if 'mask' in n], 
+            lr=args.lr_m, weight_decay=args.weight_decay)
+        optimizerSGD = torch.optim.SGD([p for n, p in model.module.named_parameters() if 'mask' not in n], 
+            lr=args.lr_w, momentum=args.momentum, weight_decay=args.weight_decay)
 
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
+        lr_schedulerAdam  = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
+        lr_schedulerSGD  = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
+    else:
+        optimizer = get_optimizer(args, model)
+        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
 
     if args.resume:
         checkpoint = torch.load(args.resume, map_location='cpu')
@@ -241,8 +247,15 @@ def main(args):
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
-        train_one_epoch(model, optimizer, data_loader, device, epoch, args.print_freq)
-        lr_scheduler.step()
+
+        if args.optim == 'AdamSGD':
+            train_one_epoch_AdamSGD(model, optimizerAdam, optimizerSGD, data_loader, device, epoch, args.print_freq)
+            lr_schedulerAdam.step()
+            lr_schedulerSGD.step()
+        else:
+            train_one_epoch(model, optimizer, data_loader, device, epoch, args.print_freq)
+            lr_scheduler.step()
+
         if args.output_dir:
             utils.save_on_master({
                 'model': model_without_ddp.state_dict(),

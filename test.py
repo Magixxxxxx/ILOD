@@ -10,7 +10,7 @@ from utils.engine import train_one_epoch, evaluate
 
 import piggyback_detection
 
-from train import get_dataset,get_detection_model,get_transform,get_transform, get_samplers,get_args
+from train import get_dataset,get_detection_model, get_transform,get_transform, get_samplers, get_args
 
 def main(args):
     print(args)
@@ -87,13 +87,32 @@ def main(args):
 
 def test(args):
     args.device = 'cpu'
-    # for n,p in sd.items():
-    #     print(n)
-    model = get_detection_model(args)
+    print("\nLoading data")
     dataset = get_dataset(args.dataset, "trainval", args.data_path, 
                         get_transform(train=True), args.ilod, args.num_classes)
     dataset_test= get_dataset(args.dataset, "test", args.data_path,
                         get_transform(train=False), args.ilod, args.num_classes)
+
+    print("\nCreating data loaders")
+
+    print("\nCreating model")
+    model = get_detection_model(args)
+    if args.optim == 'AdamSGD':
+        print('AdamSGD lr Adam:{} SGD:{}'.format(args.lr_m, args.lr_w))
+
+        optimizerAdam = torch.optim.Adam([p for n, p in model.named_parameters() if 'mask' in n], 
+            lr=args.lr_m, weight_decay=args.weight_decay)
+
+        optimizerSGD = torch.optim.SGD([p for n, p in model.named_parameters() if 'mask' not in n], 
+            lr=args.lr_w, momentum=args.momentum, weight_decay=args.weight_decay)
+
+        lr_schedulerAdam  = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=args.lr_steps, gamma=args.lr_gamma)
+        lr_schedulerSGD  = torch.optim.lr_scheduler.MultiStepLR(optimizerSGD, milestones=args.lr_steps, gamma=args.lr_gamma)
+    else:
+        optimizer = get_optimizer(args, model)
+        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
+
+    print("\nStart training")
     
 def check_parameters(net):
     '''
