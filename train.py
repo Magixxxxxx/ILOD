@@ -10,35 +10,38 @@ from torch import nn
 from utils import utils
 from utils import transforms as T
 from utils.group_by_aspect_ratio import GroupedBatchSampler, create_aspect_ratio_groups
-from utils.coco_utils import get_coco
+from utils.coco_utils import get_coco,get_voc
 from utils.engine import train_one_epoch, evaluate
 
 import piggyback_detection
 
-def get_dataset(name, image_set, transform, data_path, num_classes):
+def get_dataset(name, image_set, data_path, transform, ilod ,num_classes):
     paths = {
-        "coco": (data_path, get_coco, None), # 修改自定义数据集类别数量：num_classes+1(背景)
-        "coco[47,48]": (data_path, get_coco, "[47,48]")
+        "coco": (data_path, get_coco), # 修改自定义数据集类别数量：num_classes+1(背景)
+        "voc": (data_path, get_voc)
     }
-    p, dataset_func, ilod = paths[name]
+    p, dataset_func = paths[name]
 
     dataset = dataset_func(p, image_set=image_set, transforms=transform, ilod=ilod)
     return dataset
 
 def get_detection_model(args):
+    
+    for k,v in vars(args).items(): print(k,v)
+
     # model = piggyback_detection.pb_fasterrcnn_resnet50_fpn(args)
     from torchvision.models.detection import faster_rcnn
     from torchvision.models.detection.backbone_utils import BackboneWithFPN
     from torchvision.models import resnet
     from piggyback_detection import piggyback_resnet
 
-    if 'res50' in args.pb:
-        print("piggyback res50")
+    if 'body' in args.pb:
+        print("\npiggyback res50")
         res50 = piggyback_resnet.piggyback_resnet50()
-        # sd = torch.load("model/resnet50-19c8e357.pth", map_location=torch.device('cpu'))
-        # res50.load_state_dict(sd, strict=False)
+        sd = torch.load(args.base_model, map_location=torch.device('cpu'))
+        res50.load_state_dict(sd, strict=False)
     else:
-        print("base res50")
+        print("\nbase res50")
         res50 = resnet.__dict__['resnet50'](pretrained=True)
 
     return_layers = {'layer1': '0', 'layer2': '1', 'layer3': '2', 'layer4': '3'}
@@ -54,21 +57,29 @@ def get_detection_model(args):
     if 'fpn' in args.pb:
         print("piggyback fpn")
         backbone = piggyback_detection.backbone_utils.BackboneWithFPN(res50, return_layers, in_channels_list, out_channels)
+
+        sd = torch.load("model/fasterrcnn_resnet50_fpn_pretrained.pth", map_location=torch.device('cpu'))
+        backbone_dict = {}
+        for k,v in sd.items(): 
+            if 'backbone' in k: 
+                backbone_dict[k[9:]] = v
+        backbone.load_state_dict(backbone_dict, strict=False)
     else:
         print("base fpn")
         backbone = BackboneWithFPN(res50, return_layers, in_channels_list, out_channels)
 
     print("base detector")
-    model = faster_rcnn.FasterRCNN(backbone,num_classes=3)
+    model = faster_rcnn.FasterRCNN(backbone,num_classes=args.num_classes)
 
     for layer in model.modules():
         if isinstance(layer, nn.BatchNorm2d):
             layer.eval()
 
-    print("Parameters Requires grad: ")
+    print("\nParameters Requires grad: ")
     for n,p in model.named_parameters():
-        if 'bn' in n:
-            p.requires_grad_(False)
+        for freeze in args.freeze:
+            if freeze in n: 
+                p.requires_grad_(False)
         if p.requires_grad:
             print(n)
 
@@ -99,29 +110,30 @@ def get_samplers(args, dataset, dataset_test):
 
 def get_optimizer(args, model):
     # distributed之后，参数需加上module / pb mode 0,1
-    backbone_params = [p for p in model.module.backbone.body.parameters() if p.requires_grad]
-    fpn_params = [p for p in model.module.backbone.fpn.parameters() if p.requires_grad]
-    rpn_params = [p for p in model.module.rpn.parameters() if p.requires_grad]
-    roi_params = [p for p in model.module.roi_heads.parameters() if p.requires_grad]
-    params = [p for p in model.module.parameters() if p.requires_grad]
+    masks = [p for n, p in model.module.backbone.body.named_parameters() if 'mask' in n]
+    params = [p for n, p in model.module.backbone.body.named_parameters() if 'mask' not in n]
 
-    # ADAM
-    # optimizer = torch.optim.Adam(params, lr=args.lr_w, weight_decay=args.weight_decay)
-    optimizer = torch.optim.Adam([
-        {'params': backbone_params, 'lr': args.lr_m, 'weight_decay':args.weight_decay},
-        {'params': fpn_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
-        {'params': rpn_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
-        {'params': roi_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay},
-    ])
+    if args.optim == 'Adam':
+        if args.lr_m:
+            print('different lr m:{} w:{}'.format(lr_m,lr_w))
+            optimizer = torch.optim.Adam([
+                {'params': masks, 'lr': args.lr_m, 'weight_decay':args.weight_decay},
+                {'params': params, 'lr': args.lr_w, 'weight_decay':args.weight_decay}
+            ])
+        else:
+            optimizer = torch.optim.Adam(params, lr=args.lr_w, weight_decay=args.weight_decay)
 
-    # SGD
-    # optimizer = torch.optim.SGD(params, lr=args.lr_w, momentum=args.momentum, weight_decay=args.weight_decay)
-    # optimizer = torch.optim.SGD([
-    #     {'params':backbone_params, 'lr':args.lr_m, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
-    #     {'params':fpn_params, 'lr': args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
-    #     {'params':rpn_params, 'lr':args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
-    #     {'params':roi_params, 'lr':args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay}
-    # ])
+    elif args.optim == 'SGD':
+        if args.lr_m:
+            print('different lr m:{} w:{}'.format(lr_m,lr_w))
+            optimizer = torch.optim.SGD([
+                {'params':masks, 'lr':args.lr_m, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
+                {'params':params, 'lr': args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
+            ])
+        else:
+            optimizer = torch.optim.SGD(params, lr=args.lr_w, momentum=args.momentum, weight_decay=args.weight_decay)
+    elif args.optim == 'AdamSGD':
+        pass
 
     return optimizer 
 
@@ -129,7 +141,8 @@ def get_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-path', default='/home/zhaojiawei/Data/COCO2017', 
                         help='dataset path')
-    parser.add_argument('--dataset', default='coco[47,48]', help='dataset')
+    parser.add_argument('--dataset', default='coco', help='dataset')
+    parser.add_argument('--ilod', default='[47,48]')
     parser.add_argument('--num-classes', default=11, 
                         help='number of classes in dataset(+1 background)', type=int)
     parser.add_argument('--model', default='fasterrcnn_resnet50_fpn', 
@@ -142,14 +155,14 @@ def get_args():
                         help='number of total epochs to run, 30')
     parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--lr-m', default=0.02, type=float,
+    parser.add_argument('--lr-m', type=float,
                         help='0.02 default for 8 gpus and 2 images_per_gpu')
     parser.add_argument('--lr-w', default=1e-4, type=float)       
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M')
     parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
                         metavar='W', help='weight decay (default: 1e-4)', dest='weight_decay')
     parser.add_argument('--lr-step-size', default=8, type=int, help='decrease lr every step-size epochs')
-    parser.add_argument('--lr-steps', default=[13, 16], nargs='+', type=str, help='decrease lr every step-size epochs,[16, 22]')
+    parser.add_argument('--lr-steps', default=[13, 16], nargs='+', type=int, help='decrease lr every step-size epochs,[16, 22]')
     parser.add_argument('--lr-gamma', default=0.1, type=float, help='decrease lr by a factor of lr-gamma')
     parser.add_argument('--print-freq', default=50, type=int, help='print frequency')
     parser.add_argument('--output-dir', default='checkpoints', help='path where to save')
@@ -162,8 +175,11 @@ def get_args():
     #piggyback
     parser.add_argument("--base-model", default='', type=str)
     parser.add_argument("--base-classnum", default=91, type=int) #暂时没用
-    parser.add_argument('--pb', default='', nargs='+', type=str,
-                        help="piggyback mode :res50, fpn, rpn, roi")
+    parser.add_argument('--pb', default=[], nargs='*', type=str,
+                        help="piggyback mode :body, fpn, rpn, roi")
+    parser.add_argument("--freeze", default=[], nargs='*', type=str,
+                        help="freeze params :body, fpn, rpn, roi")
+    parser.add_argument("--optim", default='Adam', type=str)
 
     parser.add_argument("--mask-init", default='1s', type=str)
     parser.add_argument("--mask-scale", default=1e-2, type=float)
@@ -176,17 +192,16 @@ def get_args():
     return parser.parse_args()
 
 def main(args):
-    print(args)
     utils.init_distributed_mode(args)
     device = torch.device(args.device)
 
-    print("Loading data")
-    dataset = get_dataset(args.dataset, "trainval", 
-                        get_transform(train=True), args.data_path, args.num_classes)
-    dataset_test= get_dataset(args.dataset, "test", 
-                        get_transform(train=False), args.data_path,args.num_classes)
+    print("\nLoading data")
+    dataset = get_dataset(args.dataset, "trainval", args.data_path, 
+                        get_transform(train=True), args.ilod, args.num_classes)
+    dataset_test= get_dataset(args.dataset, "test", args.data_path,
+                        get_transform(train=False), args.ilod, args.num_classes)
 
-    print("Creating data loaders")
+    print("\nCreating data loaders")
     train_batch_sampler, train_sampler, test_sampler = get_samplers(args, dataset, dataset_test)
 
     data_loader = torch.utils.data.DataLoader(dataset, 
@@ -196,7 +211,7 @@ def main(args):
         sampler=test_sampler, num_workers=args.workers,
         collate_fn=utils.collate_fn)
 
-    print("Creating model")
+    print("\nCreating model")
     model = get_detection_model(args)
     model.to(device)
     model_without_ddp = model
@@ -220,7 +235,7 @@ def main(args):
         evaluate(model, data_loader_test, device=device)  
         return
 
-    print("Start training")
+    print("\nStart training")
     start_time = time.time()
 
     for epoch in range(args.start_epoch, args.epochs):
@@ -247,5 +262,3 @@ if __name__ == "__main__":
     if args.output_dir:
         utils.mkdir(args.output_dir)
     main(args)
-
-

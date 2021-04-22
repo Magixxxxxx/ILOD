@@ -281,39 +281,61 @@ class CocoDetection(torchvision.datasets.CocoDetection):
             img, target = self._transforms(img, target)
         return img, target
 
-
 def get_coco(root, image_set, transforms, mode='instances', ilod=None):
 
-    PATHS = {
-        "trainval": ("train2017", os.path.join("annotations", 'instances_train2017.json')),
-        "test": ("val2017", os.path.join("annotations", 'instances_val2017.json')),
-        # "train": ("val2017", os.path.join("annotations", anno_file_template.format(mode, "val")))
-        "trainval[0,39]": ("train2017", os.path.join("annotations", '[0, 39]-instances_train2017.json')),
-        "test[0,39]": ("val2017", os.path.join("annotations", '[0, 39]-instances_val2017.json')),
-        "trainval[40,49]": ("train2017", os.path.join("annotations", '[40, 49]-instances_train2017.json')),
-        "test[40,49]": ("val2017", os.path.join("annotations", '[40, 49]-instances_val2017.json')), 
-        "trainval[50,59]": ("train2017", os.path.join("annotations", '[50, 59]-instances_train2017.json')),
-        "test[50,59]": ("val2017", os.path.join("annotations", '[50, 59]-instances_val2017.json')),  
-        "trainval[60,69]": ("train2017", os.path.join("annotations",'[60, 69]-instances_train2017.json')),
-        "test[60,69]": ("val2017", os.path.join("annotations", '[60, 69]-instances_val2017.json')), 
-        "trainval[70,79]": ("train2017", os.path.join("annotations", '[70, 79]-instances_train2017.json')),
-        "test[70,79]": ("val2017", os.path.join("annotations", '[70, 79]-instances_val2017.json')),
-        "trainval[47,48]": ("train2017", os.path.join("annotations", '[47, 48]-instances_train2017.json')),
-        "test[47,48]": ("val2017", os.path.join("annotations", '[47, 48]-instances_val2017.json')),  
-    }
+    if ilod:
+        PATHS = {
+            "trainval": ("train2017", os.path.join("annotations", '{}-instances_train2017.json'.format(ilod))),
+            "test": ("val2017", os.path.join("annotations", '{}-instances_val2017.json'.format(ilod)))
+        }
+    else:
+        PATHS = {
+            "trainval": ("train2017", os.path.join("annotations", 'instances_train2017.json')),
+            "test": ("val2017", os.path.join("annotations", 'instances_val2017.json')),
+            # "train": ("val2017", os.path.join("annotations", anno_file_template.format(mode, "val")))
+        }
 
     t = [ConvertCocoToBox()]
 
     if transforms is not None:
         t.append(transforms)
     transforms = T.Compose(t)
-
-    if ilod:
-        image_set += ilod
         
     img_folder, ann_file = PATHS[image_set]
     img_folder = os.path.join(root, img_folder)
     ann_file = os.path.join(root, ann_file)
+    print(ann_file)
+
+    dataset = CocoDetection(img_folder, ann_file, transforms=transforms)
+    dataset = _coco_remove_images_without_annotations(dataset)
+    # dataset = torch.utils.data.Subset(dataset, [i for i in range(500)])
+
+    return dataset
+
+def get_voc(root, image_set, transforms, ilod=None):
+
+    if ilod:
+        PATHS = {
+            "trainval": ("train2007", os.path.join("annotations", '{}-voc_train2007.json'.format(ilod))),
+            "test": ("val2007", os.path.join("annotations", '{}-voc_val2007.json'.format(ilod)))
+        }
+    else:
+        PATHS = {
+            "trainval": ("train2007", os.path.join("annotations", 'voc_train2007.json')),
+            "test": ("val2007", os.path.join("annotations", 'voc_val2007.json')),
+            # "train": ("val2007", os.path.join("annotations", anno_file_template.format(mode, "val")))
+        }
+
+    t = [ConvertCocoToBox()]
+
+    if transforms is not None:
+        t.append(transforms)
+    transforms = T.Compose(t)
+        
+    img_folder, ann_file = PATHS[image_set]
+    img_folder = os.path.join(root, img_folder)
+    ann_file = os.path.join(root, ann_file)
+    print(ann_file)
 
     dataset = CocoDetection(img_folder, ann_file, transforms=transforms)
 
@@ -322,4 +344,3 @@ def get_coco(root, image_set, transforms, mode='instances', ilod=None):
     # dataset = torch.utils.data.Subset(dataset, [i for i in range(500)])
 
     return dataset
-

@@ -165,5 +165,4 @@ def piggyback_resnet50(mask_init='1s', mask_scale=1e-2, threshold_fn='binarizer'
     """Constructs a ResNet-50 model."""
     model = ResNet(Bottleneck, [3, 4, 6, 3], mask_init,
                    mask_scale, threshold_fn, **kwargs)
-    print("---------asdasdawsd")
     return model

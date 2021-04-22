@@ -33,10 +33,10 @@ def testMask(path):
 
     np.save('mask_density.npy',mask_density)
     np.save('mask_mean.npy',mask_mean)
-    
+
 
 if __name__ == '__main__':
-    model = "piggyres50_SGD_1e-2/model_5.pth"
+    model = "result/[40,49]/piggyres50_Adam_1e-5/model_10.pth"
     path = "checkpoints/"
     testMask(model)
     
