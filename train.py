@@ -115,7 +115,7 @@ def get_optimizer(args, model):
 
     if args.optim == 'Adam':
         if args.lr_m:
-            print('\nAdam lr m:{} w:{}'.format(lr_m,lr_w))
+            print('\nAdam lr m:{} w:{}'.format(args.lr_m,args.lr_w))
             optimizer = torch.optim.Adam([
                 {'params': masks, 'lr': args.lr_m, 'weight_decay':args.weight_decay},
                 {'params': params, 'lr': args.lr_w, 'weight_decay':args.weight_decay}
@@ -224,8 +224,8 @@ def main(args):
         optimizerSGD = torch.optim.SGD([p for n, p in model.module.named_parameters() if 'mask' not in n], 
             lr=args.lr_w, momentum=args.momentum, weight_decay=args.weight_decay)
 
-        lr_schedulerAdam  = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
-        lr_schedulerSGD  = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
+        lr_schedulerAdam  = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=args.lr_steps, gamma=args.lr_gamma)
+        lr_schedulerSGD  = torch.optim.lr_scheduler.MultiStepLR(optimizerSGD, milestones=args.lr_steps, gamma=args.lr_gamma)
     else:
         optimizer = get_optimizer(args, model)
         lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)

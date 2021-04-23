@@ -124,8 +124,8 @@ def train_one_epoch_AdamSGD(model, optimizerAdam, optimizerSGD, data_loader, dev
         warmup_factor = 1. / 1000
         warmup_iters = min(1000, len(data_loader) - 1)
 
-        lr_schedulerAdam = utils.warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
-        lr_schedulerSGD = utils.warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
+        lr_schedulerAdam = utils.warmup_lr_scheduler(optimizerAdam, warmup_iters, warmup_factor)
+        lr_schedulerSGD = utils.warmup_lr_scheduler(optimizerSGD, warmup_iters, warmup_factor)
 
     for images, targets in metric_logger.log_every(data_loader, print_freq, header):
         for target in targets:
@@ -155,11 +155,11 @@ def train_one_epoch_AdamSGD(model, optimizerAdam, optimizerSGD, data_loader, dev
         optimizerSGD.step()
         optimizerAdam.step()
 
-        if lr_scheduler is not None:
-            lr_scheduler.step()
+        lr_schedulerAdam.step()
+        lr_schedulerSGD.step()
 
         metric_logger.update(loss=losses_reduced, **loss_dict_reduced)
-        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+        metric_logger.update(lr=optimizerSGD.param_groups[0]["lr"])
 
     return metric_logger
 

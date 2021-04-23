@@ -1,0 +1,160 @@
+| distributed init (rank 0): env://
+| distributed init (rank 1): env://
+
+Loading data
+/root/userfolder/data/VOC/annotations/[16, 20]-voc_train2007.json
+loading annotations into memory...
+Done (t=0.01s)
+creating index...
+index created!
+/root/userfolder/data/VOC/annotations/[16, 20]-voc_val2007.json
+loading annotations into memory...
+Done (t=0.06s)
+creating index...
+index created!
+
+Creating data loaders
+Using [0, 0.5, 0.6299605249474366, 0.7937005259840997, 1.0, 1.2599210498948732, 1.5874010519681994, 2.0, inf] as bins for aspect ratio quantization
+Count of instances per bin: [  1   2 151  14  33 912  25  14]
+
+Creating model
+data_path /root/userfolder/data/VOC
+dataset voc
+ilod [16, 20]
+num_classes 6
+model fasterrcnn_resnet50_fpn
+device cuda
+batch_size 2
+epochs 18
+workers 4
+lr_m 1e-05
+lr_w 0.001
+momentum 0.9
+weight_decay 0.0001
+lr_step_size 8
+lr_steps [10, 15]
+lr_gamma 0.1
+print_freq 50
+output_dir voc[16, 20]_AdamSGD_1e-5_1e-3
+resume 
+start_epoch 0
+aspect_ratio_group_factor 3
+test_only False
+pretrained False
+base_model model/resnet50-19c8e357.pth
+base_classnum 91
+pb ['body']
+freeze ['bn']
+optim AdamSGD
+mask_init 1s
+mask_scale 0.01
+world_size 2
+dist_url env://
+local_rank 0
+rank 0
+gpu 0
+distributed True
+dist_backend nccl
+
+piggyback res50
+base fpn
+base detector
+
+Parameters Requires grad: 
+backbone.body.conv1.mask_real
+backbone.body.layer1.0.conv1.mask_real
+backbone.body.layer1.0.conv2.mask_real
+backbone.body.layer1.0.conv3.mask_real
+backbone.body.layer1.0.downsample.0.mask_real
+backbone.body.layer1.0.downsample.1.weight
+backbone.body.layer1.0.downsample.1.bias
+backbone.body.layer1.1.conv1.mask_real
+backbone.body.layer1.1.conv2.mask_real
+backbone.body.layer1.1.conv3.mask_real
+backbone.body.layer1.2.conv1.mask_real
+backbone.body.layer1.2.conv2.mask_real
+backbone.body.layer1.2.conv3.mask_real
+backbone.body.layer2.0.conv1.mask_real
+backbone.body.layer2.0.conv2.mask_real
+backbone.body.layer2.0.conv3.mask_real
+backbone.body.layer2.0.downsample.0.mask_real
+backbone.body.layer2.0.downsample.1.weight
+backbone.body.layer2.0.downsample.1.bias
+backbone.body.layer2.1.conv1.mask_real
+backbone.body.layer2.1.conv2.mask_real
+backbone.body.layer2.1.conv3.mask_real
+backbone.body.layer2.2.conv1.mask_real
+backbone.body.layer2.2.conv2.mask_real
+backbone.body.layer2.2.conv3.mask_real
+backbone.body.layer2.3.conv1.mask_real
+backbone.body.layer2.3.conv2.mask_real
+backbone.body.layer2.3.conv3.mask_real
+backbone.body.layer3.0.conv1.mask_real
+backbone.body.layer3.0.conv2.mask_real
+backbone.body.layer3.0.conv3.mask_real
+backbone.body.layer3.0.downsample.0.mask_real
+backbone.body.layer3.0.downsample.1.weight
+backbone.body.layer3.0.downsample.1.bias
+backbone.body.layer3.1.conv1.mask_real
+backbone.body.layer3.1.conv2.mask_real
+backbone.body.layer3.1.conv3.mask_real
+backbone.body.layer3.2.conv1.mask_real
+backbone.body.layer3.2.conv2.mask_real
+backbone.body.layer3.2.conv3.mask_real
+backbone.body.layer3.3.conv1.mask_real
+backbone.body.layer3.3.conv2.mask_real
+backbone.body.layer3.3.conv3.mask_real
+backbone.body.layer3.4.conv1.mask_real
+backbone.body.layer3.4.conv2.mask_real
+backbone.body.layer3.4.conv3.mask_real
+backbone.body.layer3.5.conv1.mask_real
+backbone.body.layer3.5.conv2.mask_real
+backbone.body.layer3.5.conv3.mask_real
+backbone.body.layer4.0.conv1.mask_real
+backbone.body.layer4.0.conv2.mask_real
+backbone.body.layer4.0.conv3.mask_real
+backbone.body.layer4.0.downsample.0.mask_real
+backbone.body.layer4.0.downsample.1.weight
+backbone.body.layer4.0.downsample.1.bias
+backbone.body.layer4.1.conv1.mask_real
+backbone.body.layer4.1.conv2.mask_real
+backbone.body.layer4.1.conv3.mask_real
+backbone.body.layer4.2.conv1.mask_real
+backbone.body.layer4.2.conv2.mask_real
+backbone.body.layer4.2.conv3.mask_real
+backbone.fpn.inner_blocks.0.weight
+backbone.fpn.inner_blocks.0.bias
+backbone.fpn.inner_blocks.1.weight
+backbone.fpn.inner_blocks.1.bias
+backbone.fpn.inner_blocks.2.weight
+backbone.fpn.inner_blocks.2.bias
+backbone.fpn.inner_blocks.3.weight
+backbone.fpn.inner_blocks.3.bias
+backbone.fpn.layer_blocks.0.weight
+backbone.fpn.layer_blocks.0.bias
+backbone.fpn.layer_blocks.1.weight
+backbone.fpn.layer_blocks.1.bias
+backbone.fpn.layer_blocks.2.weight
+backbone.fpn.layer_blocks.2.bias
+backbone.fpn.layer_blocks.3.weight
+backbone.fpn.layer_blocks.3.bias
+rpn.head.conv.weight
+rpn.head.conv.bias
+rpn.head.cls_logits.weight
+rpn.head.cls_logits.bias
+rpn.head.bbox_pred.weight
+rpn.head.bbox_pred.bias
+roi_heads.box_head.fc6.weight
+roi_heads.box_head.fc6.bias
+roi_heads.box_head.fc7.weight
+roi_heads.box_head.fc7.bias
+roi_heads.box_predictor.cls_score.weight
+roi_heads.box_predictor.cls_score.bias
+roi_heads.box_predictor.bbox_pred.weight
+roi_heads.box_predictor.bbox_pred.bias
+AdamSGD lr Adam:1e-05 SGD:0.001
+
+Start training
+Epoch: [0]  [  0/288]  eta: 0:04:51  lr: 0.000004  loss: 2.5528 (2.5528)  loss_box_reg: 0.0272 (0.0272)  loss_classifier: 1.8095 (1.8095)  loss_objectness: 0.6911 (0.6911)  loss_rpn_box_reg: 0.0250 (0.0250)  time: 1.0124  data: 0.3980  max mem: 4982
+Epoch: [0]  [ 50/288]  eta: 0:01:29  lr: 0.000179  loss: 2.2865 (2.4304)  loss_box_reg: 0.0213 (0.0241)  loss_classifier: 1.5456 (1.6843)  loss_objectness: 0.6861 (0.6888)  loss_rpn_box_reg: 0.0247 (0.0332)  time: 0.3642  data: 0.0057  max mem: 5595
+Epoch: [0]  [100/288]  eta: 0:01:09  lr: 0.000353  loss: 1.1325 (1.9479)  loss_box_reg: 0.0337 (0.0280)  loss_classifier: 0.4639 (1.2181)  loss_objectness: 0.6119 (0.6673)  loss_rpn_box_reg: 0.0280 (0.0345)  time: 0.3624  data: 0.0058  max mem: 5595
