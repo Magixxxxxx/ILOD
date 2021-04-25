@@ -121,16 +121,18 @@ def get_optimizer(args, model):
                 {'params': params, 'lr': args.lr_w, 'weight_decay':args.weight_decay}
             ])
         else:
+            print('\nAdam lr {}'.format(args.lr_w))
             optimizer = torch.optim.Adam(params, lr=args.lr_w, weight_decay=args.weight_decay)
 
     elif args.optim == 'SGD':
         if args.lr_m:
-            print('\nSGD lr m:{} w:{}'.format(lr_m,lr_w))
+            print('\nSGD lr m:{} w:{}'.format(args.lr_m,args.lr_w))
             optimizer = torch.optim.SGD([
                 {'params':masks, 'lr':args.lr_m, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
                 {'params':params, 'lr': args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
             ])
         else:
+            print('\nSGD lr {}'.format(args.lr_w))
             optimizer = torch.optim.SGD(params, lr=args.lr_w, momentum=args.momentum, weight_decay=args.weight_decay)
     return optimizer 
 
@@ -171,12 +173,12 @@ def get_args():
 
     #piggyback
     parser.add_argument("--base-model", default='', type=str)
-    parser.add_argument("--base-classnum", default=91, type=int) #暂时没用
     parser.add_argument('--pb', default=[], nargs='*', type=str,
                         help="piggyback mode :body, fpn, rpn, roi")
     parser.add_argument("--freeze", default=[], nargs='*', type=str,
                         help="freeze params :body, fpn, rpn, roi")
     parser.add_argument("--optim", default='Adam', type=str)
+    parser.add_argument("--pureFasterRCNN", default=0, type=bool)
 
     parser.add_argument("--mask-init", default='1s', type=str)
     parser.add_argument("--mask-scale", default=1e-2, type=float)
@@ -209,7 +211,11 @@ def main(args):
         collate_fn=utils.collate_fn)
 
     print("\nCreating model")
-    model = get_detection_model(args)
+    if args.pureFasterRCNN:
+        from torchvision.models.detection import faster_rcnn
+        model = faster_rcnn.fasterrcnn_resnet50_fpn(num_classes=args.num_classes)
+    else:
+        model = get_detection_model(args)
     model.to(device)
     model_without_ddp = model
     
@@ -219,13 +225,13 @@ def main(args):
 
     if args.optim == 'AdamSGD':
         print('AdamSGD lr Adam:{} SGD:{}'.format(args.lr_m, args.lr_w))
-        optimizerAdam = torch.optim.Adam([p for n, p in model.module.named_parameters() if 'mask' in n], 
+        optimizerMask = torch.optim.Adam([p for n, p in model.module.named_parameters() if 'mask' in n], 
             lr=args.lr_m, weight_decay=args.weight_decay)
-        optimizerSGD = torch.optim.SGD([p for n, p in model.module.named_parameters() if 'mask' not in n], 
+        optimizer = torch.optim.SGD([p for n, p in model.module.named_parameters() if 'mask' not in n], 
             lr=args.lr_w, momentum=args.momentum, weight_decay=args.weight_decay)
 
-        lr_schedulerAdam  = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=args.lr_steps, gamma=args.lr_gamma)
-        lr_schedulerSGD  = torch.optim.lr_scheduler.MultiStepLR(optimizerSGD, milestones=args.lr_steps, gamma=args.lr_gamma)
+        lr_schedulerMask  = torch.optim.lr_scheduler.MultiStepLR(optimizerMask, milestones=args.lr_steps, gamma=args.lr_gamma)
+        lr_scheduler  = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
     else:
         optimizer = get_optimizer(args, model)
         lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
@@ -249,14 +255,21 @@ def main(args):
             train_sampler.set_epoch(epoch)
 
         if args.optim == 'AdamSGD':
-            train_one_epoch_AdamSGD(model, optimizerAdam, optimizerSGD, data_loader, device, epoch, args.print_freq)
-            lr_schedulerAdam.step()
-            lr_schedulerSGD.step()
+            train_one_epoch_AdamSGD(model, optimizerMask, optimizer, data_loader, device, epoch, args.print_freq)
+            lr_schedulerMask.step()
+            lr_scheduler.step()
+            utils.save_on_master({
+                'model': model_without_ddp.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'optimizerMask': optimizerMask.state_dict(),
+                'lr_scheduler': lr_scheduler.state_dict(),
+                'lr_schedulerMask': lr_schedulerMask.state_dict(),
+                'args': args,
+                'epoch': epoch},
+                os.path.join(args.output_dir, 'model_{}.pth'.format(epoch)))
         else:
             train_one_epoch(model, optimizer, data_loader, device, epoch, args.print_freq)
             lr_scheduler.step()
-
-        if args.output_dir:
             utils.save_on_master({
                 'model': model_without_ddp.state_dict(),
                 'optimizer': optimizer.state_dict(),
@@ -264,6 +277,7 @@ def main(args):
                 'args': args,
                 'epoch': epoch},
                 os.path.join(args.output_dir, 'model_{}.pth'.format(epoch)))
+
         evaluate(model, data_loader_test, device=device)
 
     total_time = time.time() - start_time

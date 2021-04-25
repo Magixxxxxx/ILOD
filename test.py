@@ -43,76 +43,13 @@ def main(args):
 
     params = [p for p in model.parameters() if p.requires_grad]
 
-    # TODO: Different lr
-        
-    #
-
-    # optimizer = torch.optim.Adam(params, lr=args.lr, weight_decay=args.weight_decay)
-    # optimizer = torch.optim.SGD(params, lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-
-    # lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
-
-    # if args.resume:
-    #     checkpoint = torch.load(args.resume, map_location='cpu')
-    #     model_without_ddp.load_state_dict(checkpoint['model'])
-    #     optimizer.load_state_dict(checkpoint['optimizer'])
-    #     lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
-    #     args.start_epoch = checkpoint['epoch'] + 1
-
-    # if args.test_only:
-    #     evaluate(model, data_loader_test, device=device)  
-    #     return
-
-    # print("Start training")
-    # start_time = time.time()
-
-    # for epoch in range(args.start_epoch, args.epochs):
-    #     if args.distributed:
-    #         train_sampler.set_epoch(epoch)
-    #     train_one_epoch(model, optimizer, data_loader, device, epoch, args.print_freq)
-    #     lr_scheduler.step()
-    #     if args.output_dir:
-    #         utils.save_on_master({
-    #             'model': model_without_ddp.state_dict(),
-    #             'optimizer': optimizer.state_dict(),
-    #             'lr_scheduler': lr_scheduler.state_dict(),
-    #             'args': args,
-    #             'epoch': epoch},
-    #             os.path.join(args.output_dir, 'model_{}.pth'.format(epoch)))
-    #     evaluate(model, data_loader_test, device=device)
-
-    # total_time = time.time() - start_time
-    # total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    # print('Training time {}'.format(total_time_str))
 
 def test(args):
     args.device = 'cpu'
-    print("\nLoading data")
-    dataset = get_dataset(args.dataset, "trainval", args.data_path, 
-                        get_transform(train=True), args.ilod, args.num_classes)
-    dataset_test= get_dataset(args.dataset, "test", args.data_path,
-                        get_transform(train=False), args.ilod, args.num_classes)
-
-    print("\nCreating data loaders")
-
-    print("\nCreating model")
     model = get_detection_model(args)
-    if args.optim == 'AdamSGD':
-        print('AdamSGD lr Adam:{} SGD:{}'.format(args.lr_m, args.lr_w))
-
-        optimizerAdam = torch.optim.Adam([p for n, p in model.named_parameters() if 'mask' in n], 
-            lr=args.lr_m, weight_decay=args.weight_decay)
-
-        optimizerSGD = torch.optim.SGD([p for n, p in model.named_parameters() if 'mask' not in n], 
-            lr=args.lr_w, momentum=args.momentum, weight_decay=args.weight_decay)
-
-        lr_schedulerAdam  = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=args.lr_steps, gamma=args.lr_gamma)
-        lr_schedulerSGD  = torch.optim.lr_scheduler.MultiStepLR(optimizerSGD, milestones=args.lr_steps, gamma=args.lr_gamma)
-    else:
-        optimizer = get_optimizer(args, model)
-        lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_steps, gamma=args.lr_gamma)
-
-    print("\nStart training")
+    for n, p in model.named_parameters():
+        if 'mask' in n:
+            print(n)
     
 def check_parameters(net):
     '''

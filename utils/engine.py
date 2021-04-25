@@ -118,8 +118,9 @@ def train_one_epoch_AdamSGD(model, optimizerAdam, optimizerSGD, data_loader, dev
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
+    lr_schedulerAdam = None
+    lr_schedulerSGD = None
 
-    lr_scheduler = None
     if epoch == 0:
         warmup_factor = 1. / 1000
         warmup_iters = min(1000, len(data_loader) - 1)
@@ -155,8 +156,9 @@ def train_one_epoch_AdamSGD(model, optimizerAdam, optimizerSGD, data_loader, dev
         optimizerSGD.step()
         optimizerAdam.step()
 
-        lr_schedulerAdam.step()
-        lr_schedulerSGD.step()
+        if lr_schedulerAdam is not None:
+            lr_schedulerAdam.step()
+            lr_schedulerSGD.step()
 
         metric_logger.update(loss=losses_reduced, **loss_dict_reduced)
         metric_logger.update(lr=optimizerSGD.param_groups[0]["lr"])
