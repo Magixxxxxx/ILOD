@@ -26,8 +26,16 @@ def get_dataset(name, image_set, data_path, transform, ilod ,num_classes):
     return dataset
 
 def get_detection_model(args):
-    
     for k,v in vars(args).items(): print(k,v)
+
+    if args.pureFasterRCNN:
+        print("pureFasterRCNN")
+        from torchvision.models.detection import faster_rcnn
+        model = faster_rcnn.fasterrcnn_resnet50_fpn(num_classes=args.num_classes)
+        for n,p in model.named_parameters():
+            if p.requires_grad:
+                print(n)
+        return model
 
     # model = piggyback_detection.pb_fasterrcnn_resnet50_fpn(args)
     from torchvision.models.detection import faster_rcnn
@@ -42,16 +50,16 @@ def get_detection_model(args):
         res50.load_state_dict(sd, strict=False)
     else:
         print("\nbase res50")
-        res50 = resnet.__dict__['resnet50'](pretrained=True)
+        res50 = resnet.__dict__['resnet50'](pretrained=True, norm_layer=torchvision.ops.misc.FrozenBatchNorm2d)
 
-    return_layers = {'layer1': '0', 'layer2': '1', 'layer3': '2', 'layer4': '3'}
+    layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:3]
+    for name, parameter in res50.named_parameters():
+        if all([not name.startswith(layer) for layer in layers_to_train]):
+            parameter.requires_grad_(False)
+    returned_layers = [1, 2, 3, 4]
+    return_layers = {f'layer{k}': str(v) for v, k in enumerate(returned_layers)}
     in_channels_stage2 = res50.inplanes // 8
-    in_channels_list = [
-        in_channels_stage2,
-        in_channels_stage2 * 2,
-        in_channels_stage2 * 4,
-        in_channels_stage2 * 8,
-    ]
+    in_channels_list = [in_channels_stage2 * 2 ** (i - 1) for i in returned_layers]
     out_channels = 256
     
     if 'fpn' in args.pb:
@@ -70,10 +78,6 @@ def get_detection_model(args):
 
     print("base detector")
     model = faster_rcnn.FasterRCNN(backbone,num_classes=args.num_classes)
-
-    for layer in model.modules():
-        if isinstance(layer, nn.BatchNorm2d):
-            layer.eval()
 
     print("\nParameters Requires grad: ")
     for n,p in model.named_parameters():
@@ -178,7 +182,7 @@ def get_args():
     parser.add_argument("--freeze", default=[], nargs='*', type=str,
                         help="freeze params :body, fpn, rpn, roi")
     parser.add_argument("--optim", default='Adam', type=str)
-    parser.add_argument("--pureFasterRCNN", default=0, type=bool)
+    parser.add_argument("--pureFasterRCNN", default=False, action='store_true')
 
     parser.add_argument("--mask-init", default='1s', type=str)
     parser.add_argument("--mask-scale", default=1e-2, type=float)
@@ -211,11 +215,8 @@ def main(args):
         collate_fn=utils.collate_fn)
 
     print("\nCreating model")
-    if args.pureFasterRCNN:
-        from torchvision.models.detection import faster_rcnn
-        model = faster_rcnn.fasterrcnn_resnet50_fpn(num_classes=args.num_classes)
-    else:
-        model = get_detection_model(args)
+
+    model = get_detection_model(args)
     model.to(device)
     model_without_ddp = model
     
