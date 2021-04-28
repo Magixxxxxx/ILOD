@@ -10,7 +10,7 @@ from utils.engine import train_one_epoch, evaluate
 
 import piggyback_detection
 
-from train import get_dataset,get_detection_model, get_transform,get_transform, get_samplers, get_args
+from train import get_dataset, get_detection_model, get_transform,get_transform, get_samplers, get_args
 
 def main(args):
     print(args)

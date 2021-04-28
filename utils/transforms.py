@@ -48,3 +48,12 @@ class ToTensor(object):
     def __call__(self, image, target):
         image = F.to_tensor(image)
         return image, target
+
+
+class Normalize(object):
+    def __init__(self, mean = [123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375]):
+        mean = mean
+        std = std
+    def __call__(self, image, target):
+        image = (image - mean) / std
+        return image, target

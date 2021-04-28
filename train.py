@@ -52,7 +52,7 @@ def get_detection_model(args):
         print("\nbase res50")
         res50 = resnet.__dict__['resnet50'](pretrained=True, norm_layer=torchvision.ops.misc.FrozenBatchNorm2d)
 
-    layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:3]
+    layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:-1]
     for name, parameter in res50.named_parameters():
         if all([not name.startswith(layer) for layer in layers_to_train]):
             parameter.requires_grad_(False)
@@ -91,7 +91,9 @@ def get_detection_model(args):
     
 def get_transform(train):
     transforms = []
+    transforms.append(T.)
     transforms.append(T.ToTensor())
+
     if train:
         transforms.append(T.RandomHorizontalFlip(0.5))
     return T.Compose(transforms)
