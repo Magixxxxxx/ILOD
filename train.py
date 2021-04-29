@@ -10,7 +10,7 @@ from torch import nn
 from utils import utils
 from utils import transforms as T
 from utils.group_by_aspect_ratio import GroupedBatchSampler, create_aspect_ratio_groups
-from utils.coco_utils import get_coco,get_voc
+from utils.coco_utils import get_coco,get_voc,get_voc0712
 from utils.engine import train_one_epoch, train_one_epoch_AdamSGD, evaluate
 
 import piggyback_detection
@@ -18,7 +18,8 @@ import piggyback_detection
 def get_dataset(name, image_set, data_path, transform, ilod ,num_classes):
     paths = {
         "coco": (data_path, get_coco), # 修改自定义数据集类别数量：num_classes+1(背景)
-        "voc": (data_path, get_voc)
+        "voc": (data_path, get_voc),
+        "voc0712": (data_path, get_voc0712),
     }
     p, dataset_func = paths[name]
 
@@ -50,9 +51,10 @@ def get_detection_model(args):
         res50.load_state_dict(sd, strict=False)
     else:
         print("\nbase res50")
-        res50 = resnet.__dict__['resnet50'](pretrained=True, norm_layer=torchvision.ops.misc.FrozenBatchNorm2d)
+        # norm_layer=torchvision.ops.misc.FrozenBatchNorm2d
+        res50 = resnet.__dict__['resnet50'](pretrained=True, norm_layer=nn.BatchNorm2d)
 
-    layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:-1]
+    layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:3]
     for name, parameter in res50.named_parameters():
         if all([not name.startswith(layer) for layer in layers_to_train]):
             parameter.requires_grad_(False)
@@ -90,13 +92,15 @@ def get_detection_model(args):
     return model
     
 def get_transform(train):
-    transforms = []
-    transforms.append(T.)
-    transforms.append(T.ToTensor())
-
+    trans = []
+    trans.append(T.ToTensor())
+    trans.append(T.Normalize(
+        mean = (0.485, 0.456, 0.406), 
+        std = (0.229, 0.224, 0.225))
+        )
     if train:
-        transforms.append(T.RandomHorizontalFlip(0.5))
-    return T.Compose(transforms)
+        trans.append(T.RandomHorizontalFlip(0.5))
+    return T.Compose(trans)
 
 def get_samplers(args, dataset, dataset_test):
     if args.distributed:

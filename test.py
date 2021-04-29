@@ -48,8 +48,7 @@ def test(args):
     args.device = 'cpu'
     model = get_detection_model(args)
     for n, p in model.named_parameters():
-        if 'mask' in n:
-            print(n)
+        print(n,'\n',p)
     
 def check_parameters(net):
     '''

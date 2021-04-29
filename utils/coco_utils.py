@@ -316,14 +316,48 @@ def get_voc(root, image_set, transforms, ilod=None):
 
     if ilod:
         PATHS = {
-            "trainval": ("train2007", os.path.join("annotations", '{}-voc_train2007.json'.format(ilod))),
-            "test": ("val2007", os.path.join("annotations", '{}-voc_val2007.json'.format(ilod)))
+            "trainval": ("train0712", os.path.join("annotations", '{}-voc_train0712.json'.format(ilod))),
+            "test": ("val0712", os.path.join("annotations", '{}-voc_val0712.json'.format(ilod)))
         }
     else:
         PATHS = {
-            "trainval": ("train2007", os.path.join("annotations", 'voc_train2007.json')),
-            "test": ("val2007", os.path.join("annotations", 'voc_val2007.json')),
-            # "train": ("val2007", os.path.join("annotations", anno_file_template.format(mode, "val")))
+            "trainval": ("train0712", os.path.join("annotations", 'voc_train0712.json')),
+            "test": ("val0712", os.path.join("annotations", 'voc_val0712.json')),
+            # "train": ("val0712", os.path.join("annotations", anno_file_template.format(mode, "val")))
+        }
+
+    t = [ConvertCocoToBox()]
+
+    if transforms is not None:
+        t.append(transforms)
+    transforms = T.Compose(t)
+        
+    img_folder, ann_file = PATHS[image_set]
+    img_folder = os.path.join(root, img_folder)
+    ann_file = os.path.join(root, ann_file)
+    print(ann_file)
+
+    dataset = CocoDetection(img_folder, ann_file, transforms=transforms)
+
+    dataset = _coco_remove_images_without_annotations(dataset)
+
+    # dataset = torch.utils.data.Subset(dataset, [i for i in range(500)])
+
+    return dataset
+
+
+def get_voc0712(root, image_set, transforms, ilod=None):
+
+    if ilod:
+        PATHS = {
+            "trainval": ("train0712", os.path.join("annotations", '{}-voc_train0712.json'.format(ilod))),
+            "test": ("val0712", os.path.join("annotations", '{}-voc_val0712.json'.format(ilod)))
+        }
+    else:
+        PATHS = {
+            "trainval": ("train0712", os.path.join("annotations", 'voc_train0712.json')),
+            "test": ("val0712", os.path.join("annotations", 'voc_val0712.json')),
+            # "train": ("val0712", os.path.join("annotations", anno_file_template.format(mode, "val")))
         }
 
     t = [ConvertCocoToBox()]
