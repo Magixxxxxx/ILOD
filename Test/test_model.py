@@ -31,13 +31,20 @@ def testMask(path):
                     mask_density[name].append(density)
                     mask_mean[name].append(mean)
 
-    np.save('mask_density.npy',mask_density)
-    np.save('mask_mean.npy',mask_mean)
+    # np.save('mask_density.npy',mask_density)
+    # np.save('mask_mean.npy',mask_mean)
 
+def analyseParams(model):
+    layer = 'backbone.body.layer3.3.conv1.mask_real'
+    state_dict = torch.load(model, map_location=torch.device('cpu'))
+    for name,p in state_dict['model'].items():
+        if layer in name:
 
+            print(p.view(-1))
+    print(state_dict['lr_scheduler'])
 if __name__ == '__main__':
-    model = "result/[40,49]/piggyres50_Adam_1e-5/model_10.pth"
+    model = "voc[16, 20]pb[body]_Adam1e-4 5*/model_11.pth"
     path = "checkpoints/"
-    testMask(model)
+    analyseParams(model)
     
 

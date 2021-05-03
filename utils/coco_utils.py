@@ -312,17 +312,17 @@ def get_coco(root, image_set, transforms, mode='instances', ilod=None):
 
     return dataset
 
-def get_voc(root, image_set, transforms, ilod=None):
+def get_voc2007(root, image_set, transforms, ilod=None):
 
     if ilod:
         PATHS = {
-            "trainval": ("train0712", os.path.join("annotations", '{}-voc_train0712.json'.format(ilod))),
-            "test": ("val0712", os.path.join("annotations", '{}-voc_val0712.json'.format(ilod)))
+            "trainval": ("train2007", os.path.join("annotations", '{}-voc_train2007.json'.format(ilod))),
+            "test": ("val2007", os.path.join("annotations", '{}-voc_val2007.json'.format(ilod)))
         }
     else:
         PATHS = {
-            "trainval": ("train0712", os.path.join("annotations", 'voc_train0712.json')),
-            "test": ("val0712", os.path.join("annotations", 'voc_val0712.json')),
+            "trainval": ("train2007", os.path.join("annotations", 'voc_train2007.json')),
+            "test": ("val2007", os.path.join("annotations", 'voc_val2007.json')),
             # "train": ("val0712", os.path.join("annotations", anno_file_template.format(mode, "val")))
         }
 

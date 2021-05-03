@@ -10,7 +10,7 @@ from torch import nn
 from utils import utils
 from utils import transforms as T
 from utils.group_by_aspect_ratio import GroupedBatchSampler, create_aspect_ratio_groups
-from utils.coco_utils import get_coco,get_voc,get_voc0712
+from utils.coco_utils import get_coco,get_voc2007,get_voc0712
 from utils.engine import train_one_epoch, train_one_epoch_AdamSGD, evaluate
 
 import piggyback_detection
@@ -18,7 +18,7 @@ import piggyback_detection
 def get_dataset(name, image_set, data_path, transform, ilod ,num_classes):
     paths = {
         "coco": (data_path, get_coco), # 修改自定义数据集类别数量：num_classes+1(背景)
-        "voc": (data_path, get_voc),
+        "voc2007": (data_path, get_voc2007),
         "voc0712": (data_path, get_voc0712),
     }
     p, dataset_func = paths[name]
@@ -38,12 +38,12 @@ def get_detection_model(args):
                 print(n)
         return model
 
-    # model = piggyback_detection.pb_fasterrcnn_resnet50_fpn(args)
     from torchvision.models.detection import faster_rcnn
     from torchvision.models.detection.backbone_utils import BackboneWithFPN
     from torchvision.models import resnet
     from piggyback_detection import piggyback_resnet
 
+    #1. feature extract
     if 'body' in args.pb:
         print("\npiggyback res50")
         res50 = piggyback_resnet.piggyback_resnet50()
@@ -54,10 +54,11 @@ def get_detection_model(args):
         # norm_layer=torchvision.ops.misc.FrozenBatchNorm2d
         res50 = resnet.__dict__['resnet50'](pretrained=True, norm_layer=nn.BatchNorm2d)
 
-    layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:3]
-    for name, parameter in res50.named_parameters():
-        if all([not name.startswith(layer) for layer in layers_to_train]):
-            parameter.requires_grad_(False)
+    #2. fpn
+    # layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:3]
+    # for name, parameter in res50.named_parameters():
+    #     if all([not name.startswith(layer) for layer in layers_to_train]):
+    #         parameter.requires_grad_(False)
     returned_layers = [1, 2, 3, 4]
     return_layers = {f'layer{k}': str(v) for v, k in enumerate(returned_layers)}
     in_channels_stage2 = res50.inplanes // 8
@@ -68,9 +69,8 @@ def get_detection_model(args):
         print("piggyback fpn")
         backbone = piggyback_detection.backbone_utils.BackboneWithFPN(res50, return_layers, in_channels_list, out_channels)
 
-        sd = torch.load("model/fasterrcnn_resnet50_fpn_pretrained.pth", map_location=torch.device('cpu'))
         backbone_dict = {}
-        for k,v in sd.items(): 
+        for k,v in torch.load(args.base_model, map_location=torch.device('cpu')).items(): 
             if 'backbone' in k: 
                 backbone_dict[k[9:]] = v
         backbone.load_state_dict(backbone_dict, strict=False)
@@ -78,14 +78,15 @@ def get_detection_model(args):
         print("base fpn")
         backbone = BackboneWithFPN(res50, return_layers, in_channels_list, out_channels)
 
+    #3. detector
     print("base detector")
     model = faster_rcnn.FasterRCNN(backbone,num_classes=args.num_classes)
 
     print("\nParameters Requires grad: ")
     for n,p in model.named_parameters():
-        for freeze in args.freeze:
-            if freeze in n: 
-                p.requires_grad_(False)
+        # for freeze in args.freeze:
+        #     if freeze in n: 
+        #         p.requires_grad_(False)
         if p.requires_grad:
             print(n)
 
@@ -94,10 +95,8 @@ def get_detection_model(args):
 def get_transform(train):
     trans = []
     trans.append(T.ToTensor())
-    trans.append(T.Normalize(
-        mean = (0.485, 0.456, 0.406), 
-        std = (0.229, 0.224, 0.225))
-        )
+    # trans.append(T.Normalize(mean = (0.485, 0.456, 0.406), std = (0.229, 0.224, 0.225)))
+    # FasterRCNN已经默认加了这个， 包括resize
     if train:
         trans.append(T.RandomHorizontalFlip(0.5))
     return T.Compose(trans)
@@ -121,6 +120,7 @@ def get_samplers(args, dataset, dataset_test):
 def get_optimizer(args, model):
     # distributed之后，参数需加上module / pb mode 0,1
     masks = [p for n, p in model.module.named_parameters() if 'mask' in n]
+    other_params = [p for n, p in model.module.named_parameters() if 'mask' not in n]
     params = [p for n, p in model.module.named_parameters() if 'mask' not in n]
 
     if args.optim == 'Adam':
@@ -128,7 +128,7 @@ def get_optimizer(args, model):
             print('\nAdam lr m:{} w:{}'.format(args.lr_m,args.lr_w))
             optimizer = torch.optim.Adam([
                 {'params': masks, 'lr': args.lr_m, 'weight_decay':args.weight_decay},
-                {'params': params, 'lr': args.lr_w, 'weight_decay':args.weight_decay}
+                {'params': other_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay}
             ])
         else:
             print('\nAdam lr {}'.format(args.lr_w))
@@ -139,7 +139,7 @@ def get_optimizer(args, model):
             print('\nSGD lr m:{} w:{}'.format(args.lr_m,args.lr_w))
             optimizer = torch.optim.SGD([
                 {'params':masks, 'lr':args.lr_m, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
-                {'params':params, 'lr': args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
+                {'params':other_params, 'lr': args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
             ])
         else:
             print('\nSGD lr {}'.format(args.lr_w))
