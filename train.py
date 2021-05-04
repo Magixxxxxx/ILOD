@@ -51,14 +51,14 @@ def get_detection_model(args):
         res50.load_state_dict(sd, strict=False)
     else:
         print("\nbase res50")
-        # norm_layer=torchvision.ops.misc.FrozenBatchNorm2d
-        res50 = resnet.__dict__['resnet50'](pretrained=True, norm_layer=nn.BatchNorm2d)
+        norm_layer=torchvision.ops.misc.FrozenBatchNorm2d
+        res50 = resnet.__dict__['resnet50'](pretrained=True, norm_layer=norm_layer)
 
     #2. fpn
-    # layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:3]
-    # for name, parameter in res50.named_parameters():
-    #     if all([not name.startswith(layer) for layer in layers_to_train]):
-    #         parameter.requires_grad_(False)
+    layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:3]
+    for name, parameter in res50.named_parameters():
+        if all([not name.startswith(layer) for layer in layers_to_train]):
+            parameter.requires_grad_(False)
     returned_layers = [1, 2, 3, 4]
     return_layers = {f'layer{k}': str(v) for v, k in enumerate(returned_layers)}
     in_channels_stage2 = res50.inplanes // 8
@@ -84,9 +84,9 @@ def get_detection_model(args):
 
     print("\nParameters Requires grad: ")
     for n,p in model.named_parameters():
-        # for freeze in args.freeze:
-        #     if freeze in n: 
-        #         p.requires_grad_(False)
+        for freeze in args.freeze:
+            if freeze in n: 
+                p.requires_grad_(False)
         if p.requires_grad:
             print(n)
 
@@ -120,15 +120,15 @@ def get_samplers(args, dataset, dataset_test):
 def get_optimizer(args, model):
     # distributed之后，参数需加上module / pb mode 0,1
     masks = [p for n, p in model.module.named_parameters() if 'mask' in n]
-    other_params = [p for n, p in model.module.named_parameters() if 'mask' not in n]
-    params = [p for n, p in model.module.named_parameters() if 'mask' not in n]
+    nomask_params = [p for n, p in model.module.named_parameters() if 'mask' not in n]
+    params = [p for n, p in model.module.named_parameters() if p.requires_grad]
 
     if args.optim == 'Adam':
         if args.lr_m:
             print('\nAdam lr m:{} w:{}'.format(args.lr_m,args.lr_w))
             optimizer = torch.optim.Adam([
                 {'params': masks, 'lr': args.lr_m, 'weight_decay':args.weight_decay},
-                {'params': other_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay}
+                {'params': nomask_params, 'lr': args.lr_w, 'weight_decay':args.weight_decay}
             ])
         else:
             print('\nAdam lr {}'.format(args.lr_w))
@@ -139,7 +139,7 @@ def get_optimizer(args, model):
             print('\nSGD lr m:{} w:{}'.format(args.lr_m,args.lr_w))
             optimizer = torch.optim.SGD([
                 {'params':masks, 'lr':args.lr_m, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
-                {'params':other_params, 'lr': args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
+                {'params':nomask_params, 'lr': args.lr_w, 'momentum':args.momentum, 'weight_decay':args.weight_decay},
             ])
         else:
             print('\nSGD lr {}'.format(args.lr_w))
