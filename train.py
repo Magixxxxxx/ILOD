@@ -55,10 +55,10 @@ def get_detection_model(args):
         res50 = resnet.__dict__['resnet50'](pretrained=True, norm_layer=norm_layer)
 
     #2. fpn
-    layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:3]
-    for name, parameter in res50.named_parameters():
-        if all([not name.startswith(layer) for layer in layers_to_train]):
-            parameter.requires_grad_(False)
+    # layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:3]
+    # for name, parameter in res50.named_parameters():
+    #     if all([not name.startswith(layer) for layer in layers_to_train]):
+    #         parameter.requires_grad_(False)
     returned_layers = [1, 2, 3, 4]
     return_layers = {f'layer{k}': str(v) for v, k in enumerate(returned_layers)}
     in_channels_stage2 = res50.inplanes // 8
@@ -91,7 +91,59 @@ def get_detection_model(args):
             print(n)
 
     return model
-    
+
+def get_detection_model_NoFPN(args):
+    for k,v in vars(args).items(): print(k,v)
+
+    from torchvision.models.detection import faster_rcnn
+    from torchvision.models.detection.backbone_utils import BackboneWithFPN
+    from torchvision.models import resnet
+    from piggyback_detection import piggyback_resnet
+
+    #1. feature extract
+    if 'body' in args.pb:
+        print("\npiggyback res50")
+        res50 = piggyback_resnet.piggyback_resnet50()
+        res50.named_modules()
+
+        backbone_dict = {}
+        for k,v in torch.load(args.base_model, map_location=torch.device('cpu')).items():
+            for delete in ['module.encoder_q.','backbone.']:
+                k = k.replace(delete,'')
+                print(k)
+            backbone_dict[k] = v
+        res50.load_state_dict(backbone_dict, strict=False)
+    else:
+        print("\nbase res50")
+        norm_layer=torchvision.ops.misc.FrozenBatchNorm2d
+        res50 = resnet.__dict__['resnet50'](pretrained=True, norm_layer=norm_layer)
+
+    #2. fpn
+    # layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:3]
+    # for name, parameter in res50.named_parameters():
+    #     if all([not name.startswith(layer) for layer in layers_to_train]):
+    #         parameter.requires_grad_(False)
+    returned_layers = [4]
+    return_layers = {f'layer{k}': str(v) for v, k in enumerate(returned_layers)}
+
+    backbone = torchvision.models._utils.IntermediateLayerGetter(res50, return_layers=return_layers)
+    backbone.out_channels = 2048
+
+    #3. detector
+    print("base detector")
+    model = faster_rcnn.FasterRCNN(backbone, num_classes=args.num_classes)
+
+    print("\nParameters Requires grad: ")
+    for n,p in model.named_parameters():
+        for freeze in args.freeze:
+            if freeze in n:
+                print("freeze ",n)
+                p.requires_grad_(False)
+        if p.requires_grad:
+            print(n)
+
+    return model    
+
 def get_transform(train):
     trans = []
     trans.append(T.ToTensor())
@@ -222,7 +274,7 @@ def main(args):
 
     print("\nCreating model")
 
-    model = get_detection_model(args)
+    model = get_detection_model_NoFPN(args)
     model.to(device)
     model_without_ddp = model
     

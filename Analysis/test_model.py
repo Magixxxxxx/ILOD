@@ -41,9 +41,9 @@ def analyseParams(model, layer):
             print(p.view(-1))
 
 if __name__ == '__main__':
-    model = "voc[1, 10]pb[body]_Adam1e-5/model_21.pth"
+    model = "voc[16, 20]_noFPN_Adam1e-4/model_7.pth"
     path = "checkpoints/"
     layer = "backbone.body.layer4.2.conv3.weight"
-    analyseParams(model, layer)
+    testMask(model)
     
 

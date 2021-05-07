@@ -10,7 +10,7 @@ from utils.engine import train_one_epoch, evaluate
 
 import piggyback_detection
 
-from train import get_dataset, get_detection_model, get_transform,get_transform, get_samplers, get_args
+from train import get_dataset, get_detection_model, get_transform,get_transform, get_samplers, get_args, get_detection_model_NoFPN
 
 def main(args):
     print(args)
@@ -45,11 +45,12 @@ def main(args):
 
 
 def test(args):
+    args.pb = ['body']
     args.device = 'cpu'
-    model = get_detection_model(args)
-    for n, p in model.named_parameters():
-        print(n,'\n',p)
-    
+    args.base_model = "model/fasterrcnn_resnet50_fpn_pretrained.pth"
+    model = get_detection_model_NoFPN(args)
+
+
 def check_parameters(net):
     '''
         Returns module parameters. Mb

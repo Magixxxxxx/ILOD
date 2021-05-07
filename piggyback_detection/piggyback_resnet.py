@@ -1,6 +1,5 @@
 import torch.nn as nn
 import math
-import torch.utils.model_zoo as model_zoo
 
 from . import layers as nl
 from torchvision.ops import misc as misc_nn_ops
@@ -12,7 +11,6 @@ def conv3x3(in_planes, out_planes, mask_init, mask_scale, threshold_fn, stride=1
     return nl.ElementWiseConv2d(in_planes, out_planes, kernel_size=3, stride=stride,
                                 padding=1, bias=False, mask_init=mask_init, mask_scale=mask_scale,
                                 threshold_fn=threshold_fn)
-
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -94,7 +92,9 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, block, layers, mask_init, mask_scale, threshold_fn, num_classes=1000):
+    def __init__(self, mask_init, mask_scale, threshold_fn, 
+        block=Bottleneck, layers=[3, 4, 6, 3], norm_layer=nn.BatchNorm2d, num_classes=1000):
+
         self.inplanes = 64
         super(ResNet, self).__init__()
         self.conv1 = nl.ElementWiseConv2d(
@@ -163,6 +163,5 @@ class ResNet(nn.Module):
 
 def piggyback_resnet50(mask_init='1s', mask_scale=1e-2, threshold_fn='binarizer', **kwargs):
     """Constructs a ResNet-50 model."""
-    model = ResNet(Bottleneck, [3, 4, 6, 3], mask_init,
-                   mask_scale, threshold_fn, **kwargs)
+    model = ResNet(mask_init, mask_scale, threshold_fn)
     return model
