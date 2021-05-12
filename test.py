@@ -45,13 +45,16 @@ def main(args):
 
 
 def test(args):
+    args.pb = ['body']
+    args.device = 'cpu'
+    args.base_model = "models/detco_200ep.pth"
     model = get_detection_model(args)
 
 def showModel(args):
     args.pb = ['body']
     args.device = 'cpu'
     args.base_model = "models/fasterrcnn_resnet50_fpn_pretrained.pth"
-    layer = "backbone.fpn.inner_blocks.0.weight"
+    layer = "backbone.body.layer4.2.conv3.weight"
     model = get_detection_model(args)
     for name,p in model.named_parameters():
         if layer in name:

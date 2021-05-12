@@ -42,11 +42,15 @@ def get_params(model, params_file):
             k = k.replace('backbone.body.','')
             backbone_dict[k] = v
         model.load_state_dict(backbone_dict, strict=False)
-
+    elif 'detco' in params_file:
+        for k,v in torch.load(params_file, map_location=torch.device('cpu'))['state_dict'].items():
+            k = k.replace('backbone.body.','')
+            backbone_dict[k] = v
+        model.load_state_dict(backbone_dict, strict=False)
     else:
         backbone_dict = torch.load(params_file, map_location=torch.device('cpu'))
         model.load_state_dict(backbone_dict, strict=False)
-
+    print(backbone_dict.keys())
     return model
 
 def get_detection_model(args):
@@ -76,7 +80,7 @@ def get_detection_model(args):
         res50 = resnet.__dict__['resnet50'](pretrained=False, norm_layer=norm_layer)
 
     res50 = get_params(res50, args.base_model)
-    layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:3]
+    layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:]
     for name, parameter in res50.named_parameters():
         if all([not name.startswith(layer) for layer in layers_to_train]):
             parameter.requires_grad_(False)
