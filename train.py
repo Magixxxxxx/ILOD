@@ -28,12 +28,25 @@ def get_dataset(name, image_set, data_path, transform, ilod ,num_classes):
 
 def get_params(model, params_file):
     print("load params {}".format(params_file))
+
     backbone_dict = {}
-    for k,v in torch.load(params_file, map_location=torch.device('cpu')).items():
-        for delete in ['module.encoder_q.','backbone.']: k = k.replace(delete,'')
-        backbone_dict[k] = v
-    print(backbone_dict.keys())
-    model.load_state_dict(backbone_dict, strict=False)
+
+    if 'moco' in params_file:
+        for k,v in torch.load(params_file, map_location=torch.device('cpu'))['state_dict'].items():
+            k = k.replace('module.encoder_q.','')
+            backbone_dict[k] = v
+        model.load_state_dict(backbone_dict, strict=False)
+
+    elif 'faster' in params_file:
+        for k,v in torch.load(params_file, map_location=torch.device('cpu')).items():
+            k = k.replace('backbone.body.','')
+            backbone_dict[k] = v
+        model.load_state_dict(backbone_dict, strict=False)
+
+    else:
+        backbone_dict = torch.load(params_file, map_location=torch.device('cpu'))
+        model.load_state_dict(backbone_dict, strict=False)
+
     return model
 
 def get_detection_model(args):
@@ -51,38 +64,34 @@ def get_detection_model(args):
     from torchvision.models.detection import faster_rcnn
     from torchvision.models.detection.backbone_utils import BackboneWithFPN
 
-    #1. feature extract
+    #1. feature extractor
     norm_layer=torchvision.ops.misc.FrozenBatchNorm2d
     if 'body' in args.pb:
         print("\npiggyback res50")
         from piggyback_detection import pb_resnet
-        res50 = pb_resnet.__dict__['resnet50'](norm_layer=norm_layer)
+        res50 = pb_resnet.__dict__['resnet50'](pretrained=False, norm_layer=norm_layer)
     else:
         print("\nbase res50")
         from torchvision.models import resnet
-        res50 = resnet.__dict__['resnet50'](norm_layer=norm_layer)
+        res50 = resnet.__dict__['resnet50'](pretrained=False, norm_layer=norm_layer)
 
     res50 = get_params(res50, args.base_model)
+    layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:3]
+    for name, parameter in res50.named_parameters():
+        if all([not name.startswith(layer) for layer in layers_to_train]):
+            parameter.requires_grad_(False)
+
     #2. fpn
-    # layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:3]
-    # for name, parameter in res50.named_parameters():
-    #     if all([not name.startswith(layer) for layer in layers_to_train]):
-    #         parameter.requires_grad_(False)
     returned_layers = [1, 2, 3, 4]
     return_layers = {f'layer{k}': str(v) for v, k in enumerate(returned_layers)}
     in_channels_stage2 = res50.inplanes // 8
     in_channels_list = [in_channels_stage2 * 2 ** (i - 1) for i in returned_layers]
     out_channels = 256
-    
+
     if 'fpn' in args.pb:
         print("piggyback fpn")
         backbone = piggyback_detection.backbone_utils.BackboneWithFPN(res50, return_layers, in_channels_list, out_channels)
-
-        backbone_dict = {}
-        for k,v in torch.load(args.base_model, map_location=torch.device('cpu')).items(): 
-            if 'backbone' in k: 
-                backbone_dict[k[9:]] = v
-        backbone.load_state_dict(backbone_dict, strict=False)
+        backbone = get_params(backbone, args.base_model)
     else:
         print("base fpn")
         backbone = BackboneWithFPN(res50, return_layers, in_channels_list, out_channels)
@@ -113,7 +122,7 @@ def get_detection_model_NoFPN(args):
     if 'body' in args.pb:
         print("\npiggyback res50")
         res50 = piggyback_resnet.piggyback_resnet50()
-        res50 = get_params(res50, args.base_model)
+        # res50 = get_params(res50, args.base_model)
 
     else:
         print("\nbase res50")

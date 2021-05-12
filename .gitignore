@@ -2,7 +2,7 @@
 model/*
 *.out
 *.pth
-*.sh
+*.tar
 *.pyc
 *.npy
 __pycache__/

@@ -45,11 +45,17 @@ def main(args):
 
 
 def test(args):
-    args.pb = ['body']
-    args.device = 'cpu'
-    args.base_model = "model/fasterrcnn_resnet50_fpn_pretrained.pth"
     model = get_detection_model(args)
 
+def showModel(args):
+    args.pb = ['body']
+    args.device = 'cpu'
+    args.base_model = "models/fasterrcnn_resnet50_fpn_pretrained.pth"
+    layer = "backbone.fpn.inner_blocks.0.weight"
+    model = get_detection_model(args)
+    for name,p in model.named_parameters():
+        if layer in name:
+            print(p.view(-1))
 
 def check_parameters(net):
     '''
@@ -62,16 +68,11 @@ def check_parameters(net):
     parameters = sum(param.numel() for name,param in net.named_parameters() if 'box_predict' in name)
     return parameters / 10**6
 
-def test2(args):
-    from torchvision.models import resnet50
-    backbone = resnet50()
-    for n in backbone.modules():
-        print(n)
 
 if __name__ == "__main__":
     args = get_args()
     if args.output_dir:
         utils.mkdir(args.output_dir)
-    test(args)
+    showModel(args)
 
 

@@ -3,6 +3,7 @@ from torchvision.models import resnet
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
 import numpy as np
 import sys,os
+
 sys.path.append(".")
 
 import piggyback_detection
@@ -41,9 +42,11 @@ def analyseParams(model, layer):
             print(p.view(-1))
 
 if __name__ == '__main__':
-    model = "voc[16, 20]_noFPN_Adam1e-4/model_7.pth"
-    path = "checkpoints/"
+
+    model = "voc[16, 20]_pb[body]FasterInit_Adam:1e-4_1e-5/model_8.pth"
+    # path = "checkpoints/"
     layer = "backbone.body.layer4.2.conv3.weight"
+    
     testMask(model)
     
 
