@@ -92,15 +92,16 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, mask_init, mask_scale, threshold_fn, 
-        block=Bottleneck, layers=[3, 4, 6, 3], norm_layer=nn.BatchNorm2d, num_classes=1000):
-
+    def __init__(self, mask_init, mask_scale, threshold_fn, norm_layer, 
+        block=Bottleneck, layers=[3, 4, 6, 3], num_classes=1000):
+        print("resnet norm:",norm_layer)
+        self.norm_layer = norm_layer
         self.inplanes = 64
         super(ResNet, self).__init__()
         self.conv1 = nl.ElementWiseConv2d(
             3, 64, kernel_size=7, stride=2, padding=3, bias=False,
             mask_init=mask_init, mask_scale=mask_scale, threshold_fn=threshold_fn)
-        self.bn1 = nn.BatchNorm2d(64)
+        self.bn1 = norm_layer(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(
@@ -130,7 +131,7 @@ class ResNet(nn.Module):
                     self.inplanes, planes * block.expansion,
                     kernel_size=1, stride=stride, bias=False,
                     mask_init=mask_init, mask_scale=mask_scale, threshold_fn=threshold_fn),
-                nn.BatchNorm2d(planes * block.expansion),
+                self.norm_layer(planes * block.expansion),
             )
 
         layers = []
@@ -161,7 +162,7 @@ class ResNet(nn.Module):
         return x
 
 
-def piggyback_resnet50(mask_init='1s', mask_scale=1e-2, threshold_fn='binarizer', **kwargs):
+def piggyback_resnet50(mask_init='1s', mask_scale=1e-2, threshold_fn='binarizer', norm_layer=misc_nn_ops.FrozenBatchNorm2d, **kwargs):
     """Constructs a ResNet-50 model."""
-    model = ResNet(mask_init, mask_scale, threshold_fn)
+    model = ResNet(mask_init, mask_scale, threshold_fn, norm_layer)
     return model

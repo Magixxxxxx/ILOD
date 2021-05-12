@@ -48,7 +48,7 @@ def test(args):
     args.pb = ['body']
     args.device = 'cpu'
     args.base_model = "model/fasterrcnn_resnet50_fpn_pretrained.pth"
-    model = get_detection_model_NoFPN(args)
+    model = get_detection_model(args)
 
 
 def check_parameters(net):
