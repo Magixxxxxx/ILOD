@@ -70,6 +70,7 @@ def get_detection_model(args):
 
     #1. feature extractor
     norm_layer=torchvision.ops.misc.FrozenBatchNorm2d
+    # norm_layer=nn.BatchNorm2d
     if 'body' in args.pb:
         print("\npiggyback res50")
         from piggyback_detection import pb_resnet
@@ -80,7 +81,7 @@ def get_detection_model(args):
         res50 = resnet.__dict__['resnet50'](pretrained=False, norm_layer=norm_layer)
 
     res50 = get_params(res50, args.base_model)
-    layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:]
+    layers_to_train = ['layer4', 'layer3', 'layer2', 'layer1', 'conv1'][:4]
     for name, parameter in res50.named_parameters():
         if all([not name.startswith(layer) for layer in layers_to_train]):
             parameter.requires_grad_(False)
